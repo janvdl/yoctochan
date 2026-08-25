@@ -14,3 +14,39 @@ class Board(models.Model):
 
     def __str__(self):
         return f"/{self.slug}/"
+
+class Thread(models.Model):
+    board = models.ForeignKey(
+        Board,
+        on_delete=models.CASCADE,
+        related_name="threads",
+    )
+
+    subject = models.CharField(
+        max_length=200,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    bumped_at = models.DateTimeField(auto_now=True)
+
+    locked = models.BooleanField(default=False)
+    pinned = models.BooleanField(default=False)
+
+class Post(models.Model):
+    thread = models.ForeignKey(
+        Thread,
+        on_delete=models.CASCADE,
+        related_name="posts",
+    )
+
+    content = models.TextField()
+
+    poster_name = models.CharField(
+        max_length=64,
+        blank=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    deleted = models.BooleanField(default=False)

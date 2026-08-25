@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <title>
+        /{{ thread.board.slug }}/ -
+        {{ thread.subject|default:"(no subject)" }}
+    </title>
+</head>
+
+<body>
+
+<p>
+    <a href="{% url 'board' thread.board.slug %}">
+        ← Back to /{{ thread.board.slug }}/
+    </a>
+</p>
+
+<h1>
+    {{ thread.subject|default:"(no subject)" }}
+</h1>
+
+<p>
+    Thread #{{ thread.id }}
+</p>
+
+<hr>
+
+{% if posts %}
+
+    {% for post in posts %}
+
+        <article id="post-{{ post.id }}">
+
+            <header>
+                <strong>
+                    No.{{ post.id }}
+                </strong>
+
+                {% if post.poster_name %}
+                    {{ post.poster_name }}
+                {% else %}
+                    Anonymous
+                {% endif %}
+
+                {{ post.created_at }}
+            </header>
+
+            <p>
+                {{ post.content|linebreaksbr }}
+            </p>
+
+        </article>
+
+        <hr>
+
+    {% endfor %}
+
+{% else %}
+
+    <p>
+        This thread has no posts.
+    </p>
+
+{% endif %}
+
+</body>
+</html>

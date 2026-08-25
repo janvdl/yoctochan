@@ -8,11 +8,57 @@
 
 <body>
 
-<h1>/{{ board.slug }}/ - {{ board.name }}</h1>
+<h1>
+    /{{ board.slug }}/ - {{ board.name }}
+</h1>
 
 <p>
     {{ board.description }}
 </p>
+
+<hr>
+
+{% if threads %}
+
+    {% for thread in threads %}
+
+        <article>
+            <h2>
+                <a href="{% url 'thread' board.slug thread.id %}">
+                    {{ thread.subject|default:"(no subject)" }}
+                </a>
+            </h2>
+
+            <p>
+                Thread #{{ thread.id }}
+            </p>
+
+            <p>
+                {{ thread.posts.count }} post{{ thread.posts.count|pluralize }}
+            </p>
+
+            <p>
+                Created:
+                {{ thread.created_at }}
+            </p>
+
+            <p>
+                Last bumped:
+                {{ thread.bumped_at }}
+            </p>
+        </article>
+
+        <hr>
+
+    {% endfor %}
+
+{% else %}
+
+    <p>
+        There are no threads on this board yet.
+    </p>
+
+{% endif %}
 
 </body>
 </html>

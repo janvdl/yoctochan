@@ -9,4 +9,10 @@ urlpatterns = [
         views.board,
         name="board",
     ),
+
+    path(
+        "<slug:board_slug>/thread/<int:thread_id>/",
+        views.thread,
+        name="thread",
+    ),
 ]
