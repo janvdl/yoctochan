@@ -15,4 +15,16 @@ urlpatterns = [
         views.thread,
         name="thread",
     ),
+
+    path(
+        "<slug:board_slug>/thread/create/",
+        views.create_thread,
+        name="create-thread",
+    ),
+
+    path(
+        "<slug:board_slug>/thread/<int:thread_id>/reply/",
+        views.create_reply,
+        name="create-reply",
+    ),
 ]

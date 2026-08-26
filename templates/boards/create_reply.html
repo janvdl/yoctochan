@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <title>
+        Reply - /{{ thread.board.slug }}/
+    </title>
+</head>
+
+<body>
+
+<h1>
+    Reply to:
+    {{ thread.subject|default:"(no subject)" }}
+</h1>
+
+<p>
+    <a href="{% url 'thread' thread.board.slug thread.id %}">
+        ← Back to thread
+    </a>
+</p>
+
+<form method="post">
+
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    <p>
+        {{ form.poster_name.label_tag }}
+        {{ form.poster_name }}
+
+        {{ form.poster_name.errors }}
+    </p>
+
+    <p>
+        {{ form.content.label_tag }}
+        {{ form.content }}
+
+        {{ form.content.errors }}
+    </p>
+
+    <button type="submit">
+        Post Reply
+    </button>
+
+</form>
+
+</body>
+</html>

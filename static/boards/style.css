@@ -1,0 +1,19 @@
+body {
+    font-family: sans-serif;
+}
+
+.post-content {
+    white-space: normal;
+}
+
+.greentext {
+    color: #789922;
+}
+
+.post-reference {
+    text-decoration: none;
+}
+
+.post-reference:hover {
+    text-decoration: underline;
+}

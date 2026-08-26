@@ -1,0 +1,23 @@
+{% load post_tags %}
+
+<article id="post-{{ post.id }}">
+
+    <header>
+        <strong>
+            No.{{ post.id }}
+        </strong>
+
+        {% if post.poster_name %}
+            {{ post.poster_name }}
+        {% else %}
+            Anonymous
+        {% endif %}
+
+        {{ post.created_at }}
+    </header>
+
+    <div class="post-content">
+        {{ post|render_post }}
+    </div>
+
+</article>

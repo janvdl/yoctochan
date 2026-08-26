@@ -50,3 +50,27 @@ class Post(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     deleted = models.BooleanField(default=False)
+
+class PostReference(models.Model):
+    source = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="references",
+    )
+
+    target = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="referenced_by",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "target"],
+                name="unique_post_reference",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.source_id} -> {self.target_id}"

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Board, Post, Thread
+from .models import Board, Post, PostReference, Thread
 
 
 @admin.register(Board)
@@ -60,4 +60,16 @@ class PostAdmin(admin.ModelAdmin):
     search_fields = (
         "content",
         "poster_name",
+    )
+
+@admin.register(PostReference)
+class PostReferenceAdmin(admin.ModelAdmin):
+    list_display = (
+        "source",
+        "target",
+    )
+
+    search_fields = (
+        "source__content",
+        "target__content",
     )

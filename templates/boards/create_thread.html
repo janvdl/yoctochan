@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <title>
+        New Thread - /{{ board.slug }}/
+    </title>
+</head>
+
+<body>
+
+<h1>
+    New Thread - /{{ board.slug }}/
+</h1>
+
+<form method="post">
+
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    <p>
+        {{ form.subject.label_tag }}
+        {{ form.subject }}
+
+        {{ form.subject.errors }}
+    </p>
+
+    <p>
+        {{ form.poster_name.label_tag }}
+        {{ form.poster_name }}
+
+        {{ form.poster_name.errors }}
+    </p>
+
+    <p>
+        {{ form.content.label_tag }}
+        {{ form.content }}
+
+        {{ form.content.errors }}
+    </p>
+
+    <button type="submit">
+        Create Thread
+    </button>
+
+</form>
+
+<p>
+    <a href="{% url 'board' board.slug %}">
+        Cancel
+    </a>
+</p>
+
+</body>
+</html>

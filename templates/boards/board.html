@@ -16,6 +16,12 @@
     {{ board.description }}
 </p>
 
+<p>
+    <a href="{% url 'create-thread' board.slug %}">
+        New Thread
+    </a>
+</p>
+
 <hr>
 
 {% if threads %}

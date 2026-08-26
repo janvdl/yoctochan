@@ -1,3 +1,5 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +9,8 @@
         /{{ thread.board.slug }}/ -
         {{ thread.subject|default:"(no subject)" }}
     </title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
 </head>
 
 <body>
@@ -25,33 +29,21 @@
     Thread #{{ thread.id }}
 </p>
 
+{% if not thread.locked %}
+    <p>
+        <a href="{% url 'create-reply' thread.board.slug thread.id %}">
+            Reply to Thread
+        </a>
+    </p>
+{% endif %}
+
 <hr>
 
 {% if posts %}
 
     {% for post in posts %}
 
-        <article id="post-{{ post.id }}">
-
-            <header>
-                <strong>
-                    No.{{ post.id }}
-                </strong>
-
-                {% if post.poster_name %}
-                    {{ post.poster_name }}
-                {% else %}
-                    Anonymous
-                {% endif %}
-
-                {{ post.created_at }}
-            </header>
-
-            <p>
-                {{ post.content|linebreaksbr }}
-            </p>
-
-        </article>
+        {% include "boards/post.html" %}
 
         <hr>
 

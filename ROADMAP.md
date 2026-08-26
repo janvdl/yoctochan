@@ -28,7 +28,7 @@
 
 # Phase 3 - Writing
 
-[ ] Create thread
+[x] Create thread
 
 [ ] Reply
 
