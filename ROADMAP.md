@@ -30,15 +30,15 @@
 
 [x] Create thread
 
-[ ] Reply
+[x] Reply
 
 [ ] Post validation
 
-[ ] Thread bumping
+[x] Thread bumping
 
-[ ] Post IDs
+[x] Post IDs
 
-[ ] >> references
+[x] >> references
 
 # Phase 4 - Moderation
 
