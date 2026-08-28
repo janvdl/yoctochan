@@ -1,9 +1,131 @@
+/* Classic imageboard-inspired presentation for the existing board templates. */
+
+:root {
+    --page: #ffffee;
+    --text: #800000;
+    --link: #0000ee;
+    --visited-link: #0000aa;
+    --rule: #d9bfb7;
+    --reply: #f0e0d6;
+    --reply-hover: #e6d4ca;
+    --input: #fff;
+    --border: #aaa;
+    --metadata: #117743;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: sans-serif;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 8px 12px 28px;
+    background: var(--page);
+    color: var(--text);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    line-height: 1.25;
+}
+
+a {
+    color: var(--link);
+    text-decoration: none;
+}
+
+a:visited {
+    color: var(--visited-link);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+body > header {
+    margin: 8px 0 14px;
+    text-align: center;
+}
+
+h1,
+h2 {
+    margin: 0;
+    color: #af0a0f;
+    font-family: Tahoma, Arial, sans-serif;
+    font-weight: bold;
+}
+
+h1 {
+    font-size: 1.7em;
+}
+
+h2 {
+    font-size: 1.15em;
+}
+
+body > header p {
+    margin: 5px 0;
+}
+
+hr {
+    height: 1px;
+    margin: 10px 0;
+    border: 0;
+    border-top: 1px solid var(--rule);
+}
+
+/* Board index */
+.catalogue-thread {
+    margin: 14px 0;
+}
+
+.catalogue-thread > header {
+    margin-bottom: 5px;
+}
+
+.catalogue-thread > header p {
+    margin: 3px 0;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.catalogue-thread > header strong {
+    margin-left: 4px;
+    color: #d00;
+    font-size: 0.85em;
+}
+
+/* The first post is an unboxed OP; later posts read as replies. */
+article {
+    display: table;
+    max-width: min(100%, 1000px);
+    margin: 6px 0;
+    padding: 4px 8px;
+    color: #000;
+}
+
+article + hr + article,
+.catalogue-thread article:not(:first-of-type) {
+    background: var(--reply);
+}
+
+article:hover {
+    background: var(--reply-hover);
+}
+
+article > header {
+    margin-bottom: 4px;
+    color: var(--metadata);
+    font-size: 0.9em;
+}
+
+article > header strong {
+    color: #000;
 }
 
 .post-content {
-    white-space: normal;
+    min-width: 280px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .greentext {
@@ -11,9 +133,105 @@ body {
 }
 
 .post-reference {
+    color: #d00;
     text-decoration: none;
 }
 
 .post-reference:hover {
+    color: #e04000;
     text-decoration: underline;
+}
+
+/* Posting forms */
+form {
+    width: min(100%, 520px);
+    margin: 18px 0 14px;
+    padding: 8px 12px 12px;
+    border: 1px solid var(--border);
+    background: var(--reply);
+}
+
+form p {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+    margin: 6px 0;
+}
+
+form label {
+    font-weight: bold;
+}
+
+input,
+textarea,
+button {
+    border: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--input);
+    color: #000;
+    font: inherit;
+}
+
+input,
+textarea {
+    width: 100%;
+    padding: 3px;
+}
+
+textarea {
+    min-height: 9em;
+    resize: vertical;
+}
+
+button {
+    padding: 3px 9px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #eee;
+}
+
+form strong,
+.errorlist {
+    color: #d00;
+}
+
+.pagination {
+    margin: 18px 0;
+    text-align: center;
+}
+
+.pagination a,
+.pagination span {
+    margin: 0 4px;
+}
+
+@media (max-width: 560px) {
+    body {
+        padding: 6px 7px 20px;
+    }
+
+    article {
+        display: block;
+        width: 100%;
+    }
+
+    .post-content {
+        min-width: 0;
+    }
+
+    form {
+        width: 100%;
+    }
+
+    form p {
+        display: block;
+    }
+
+    form label {
+        display: block;
+        margin-bottom: 3px;
+    }
 }
