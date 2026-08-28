@@ -1,17 +1,19 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+    <title>New Thread - /{{ board.slug }}/</title>
 
-    <title>
-        New Thread - /{{ board.slug }}/
-    </title>
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
 </head>
 
 <body>
 
 <h1>
-    New Thread - /{{ board.slug }}/
+    Create New Thread
 </h1>
 
 <form method="post">
@@ -24,21 +26,30 @@
         {{ form.subject.label_tag }}
         {{ form.subject }}
 
-        {{ form.subject.errors }}
+        {% for error in form.subject.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
     </p>
 
     <p>
         {{ form.poster_name.label_tag }}
         {{ form.poster_name }}
 
-        {{ form.poster_name.errors }}
+        {% for error in form.poster_name.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
     </p>
 
     <p>
         {{ form.content.label_tag }}
         {{ form.content }}
 
-        {{ form.content.errors }}
+        {% for error in form.content.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
     </p>
 
     <button type="submit">
@@ -49,7 +60,7 @@
 
 <p>
     <a href="{% url 'board' board.slug %}">
-        Cancel
+        Return to /{{ board.slug }}/
     </a>
 </p>
 

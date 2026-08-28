@@ -1,70 +1,119 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
 
-    <title>/{{ board.slug }}/ - {{ board.name }}</title>
+    <title>
+        /{{ board.slug }}/ - {{ board.name }}
+    </title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
 </head>
 
 <body>
 
-<h1>
-    /{{ board.slug }}/ - {{ board.name }}
-</h1>
+<header>
+    <h1>
+        /{{ board.slug }}/ - {{ board.name }}
+    </h1>
 
-<p>
-    {{ board.description }}
-</p>
+    {% if board.description %}
+        <p>
+            {{ board.description }}
+        </p>
+    {% endif %}
 
-<p>
-    <a href="{% url 'create-thread' board.slug %}">
-        New Thread
-    </a>
-</p>
+    <p>
+        <a href="{% url 'create-thread' board.slug %}">
+            [ New Thread ]
+        </a>
+    </p>
+</header>
 
 <hr>
 
-{% if threads %}
+{% for thread in page_obj %}
 
-    {% for thread in threads %}
+    <section class="catalogue-thread">
 
-        <article>
+        <header>
             <h2>
                 <a href="{% url 'thread' board.slug thread.id %}">
                     {{ thread.subject|default:"(no subject)" }}
                 </a>
+
+                {% if thread.pinned %}
+                    <strong>[Pinned]</strong>
+                {% endif %}
+
+                {% if thread.locked %}
+                    <strong>[Locked]</strong>
+                {% endif %}
             </h2>
 
             <p>
-                Thread #{{ thread.id }}
+                Thread No.{{ thread.id }}
+                ·
+                {{ thread.posts.count }}
+                post{{ thread.posts.count|pluralize }}
             </p>
+        </header>
 
+        {% for post in thread.catalogue_display_posts %}
+            {% include "boards/post.html" %}
+        {% endfor %}
+
+        {% if thread.catalogue_posts|length > board.catalogue_replies %}
             <p>
-                {{ thread.posts.count }} post{{ thread.posts.count|pluralize }}
+                <a href="{% url 'thread' board.slug thread.id %}">
+                    View full thread →
+                </a>
             </p>
+        {% endif %}
 
-            <p>
-                Created:
-                {{ thread.created_at }}
-            </p>
+    </section>
 
-            <p>
-                Last bumped:
-                {{ thread.bumped_at }}
-            </p>
-        </article>
+    <hr>
 
-        <hr>
-
-    {% endfor %}
-
-{% else %}
+{% empty %}
 
     <p>
         There are no threads on this board yet.
     </p>
 
-{% endif %}
+{% endfor %}
+
+<nav class="pagination">
+
+    {% if page_obj.has_previous %}
+        <a href="?page=1">
+            First
+        </a>
+
+        <a href="?page={{ page_obj.previous_page_number }}">
+            Previous
+        </a>
+    {% endif %}
+
+    <span>
+        Page {{ page_obj.number }}
+        of {{ page_obj.paginator.num_pages }}
+    </span>
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">
+            Next
+        </a>
+
+        <a href="?page={{ page_obj.paginator.num_pages }}">
+            Last
+        </a>
+    {% endif %}
+
+</nav>
 
 </body>
 </html>

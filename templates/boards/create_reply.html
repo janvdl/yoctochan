@@ -1,25 +1,20 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+    <title>Reply - /{{ thread.board.slug }}/</title>
 
-    <title>
-        Reply - /{{ thread.board.slug }}/
-    </title>
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
 </head>
 
 <body>
 
 <h1>
-    Reply to:
-    {{ thread.subject|default:"(no subject)" }}
+    Reply to Thread #{{ thread.id }}
 </h1>
-
-<p>
-    <a href="{% url 'thread' thread.board.slug thread.id %}">
-        ← Back to thread
-    </a>
-</p>
 
 <form method="post">
 
@@ -31,21 +26,33 @@
         {{ form.poster_name.label_tag }}
         {{ form.poster_name }}
 
-        {{ form.poster_name.errors }}
+        {% for error in form.poster_name.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
     </p>
 
     <p>
         {{ form.content.label_tag }}
         {{ form.content }}
 
-        {{ form.content.errors }}
+        {% for error in form.content.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
     </p>
 
     <button type="submit">
-        Post Reply
+        Submit Reply
     </button>
 
 </form>
+
+<p>
+    <a href="{% url 'thread' thread.board.slug thread.id %}">
+        Return to thread
+    </a>
+</p>
 
 </body>
 </html>

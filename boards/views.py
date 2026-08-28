@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404, redirect, render
+from django.core.paginator import Paginator
+from django.db.models import Count, Prefetch
 
 from .forms import CreateThreadForm, CreatePostForm
 from .models import Board, Thread, Post
@@ -13,16 +15,56 @@ def board(request, board_slug):
 
     threads = (
         board.threads
-        .filter(locked=False)
+        .annotate(post_count=Count("posts"))
+        .prefetch_related(
+            Prefetch(
+                "posts",
+                queryset=Post.objects.order_by("-created_at"),
+                to_attr="catalogue_posts",
+            )
+        )
         .order_by("-pinned", "-bumped_at")
     )
+
+    paginator = Paginator(
+        threads,
+        board.threads_per_page,
+    )
+
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    for thread in page_obj:
+        posts = thread.catalogue_posts
+
+        if not posts:
+            thread.catalogue_display_posts = []
+            continue
+
+        # Posts are ordered newest -> oldest,
+        # so the last post is the OP.
+        op = posts[-1]
+
+        # Exclude the OP, then take the newest replies.
+        replies = posts[:-1]
+
+        recent_replies = replies[
+            :board.catalogue_replies
+        ]
+
+        # Display OP first, followed by replies
+        # in chronological order.
+        thread.catalogue_display_posts = (
+            [op]
+            + list(reversed(recent_replies))
+        )
 
     return render(
         request,
         "boards/board.html",
         {
             "board": board,
-            "threads": threads,
+            "page_obj": page_obj,
         },
     )
 

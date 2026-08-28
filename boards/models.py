@@ -6,6 +6,18 @@ class Board(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
 
+    bump_limit = models.PositiveIntegerField(
+        default=300,
+    )
+
+    threads_per_page = models.PositiveIntegerField(
+        default=10,
+    )
+
+    catalogue_replies = models.PositiveIntegerField(
+        default=3,
+    )
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -23,15 +35,24 @@ class Thread(models.Model):
     )
 
     subject = models.CharField(
-        max_length=200,
+        max_length=150,
         blank=True,
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
-    bumped_at = models.DateTimeField(auto_now=True)
+    bumped_at = models.DateTimeField(auto_now_add=True)
 
     locked = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-pinned", "-bumped_at"]
+
+    def can_bump(self):
+        return self.posts.count() < self.board.bump_limit
+
+    def __str__(self):
+        return f"/{self.board.slug}/ - Thread {self.pk}"
 
 class Post(models.Model):
     thread = models.ForeignKey(
@@ -40,7 +61,9 @@ class Post(models.Model):
         related_name="posts",
     )
 
-    content = models.TextField()
+    content = models.TextField(
+        max_length=4_000,
+    )
 
     poster_name = models.CharField(
         max_length=64,

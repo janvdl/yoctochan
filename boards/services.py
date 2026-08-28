@@ -42,8 +42,9 @@ class ThreadService:
             content=content,
         )
 
-        thread.bumped_at = timezone.now()
-        thread.save(update_fields=["bumped_at"])
+        if thread.can_bump():
+            thread.bumped_at = timezone.now()
+            thread.save(update_fields=["bumped_at"])
 
         PostService.parse_references(post)
 
