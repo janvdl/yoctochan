@@ -1,0 +1,41 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Yoctochan</title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
+</head>
+
+<body>
+
+<header>
+    <h1>Yoctochan</h1>
+    <p>Boards</p>
+</header>
+
+<hr>
+
+{% if boards %}
+    <ul class="board-list">
+        {% for board in boards %}
+            <li>
+                <a href="{% url 'board' board.slug %}">
+                    /{{ board.slug }}/ - {{ board.name }}
+                </a>
+
+                {% if board.description %}
+                    <span>{{ board.description }}</span>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>There are no active boards yet.</p>
+{% endif %}
+
+</body>
+</html>

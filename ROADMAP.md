@@ -13,8 +13,8 @@
 
 # Phase 2 — Reading
 
-[ ] Homepage
-[ ] Board list
+[x] Homepage
+[x] Board list
 [x] Board page
 [x] Thread page
 [x] Basic templates
@@ -22,8 +22,8 @@
 [x] Thread catalogue
 [x] Pagination
 [ ] Error pages
-[ ] Greentext
-[ ] Automatic URL linking
+[x] Greentext
+[x] Automatic URL linking
 [x] >> references
 [ ] Efficient catalogue queries
 
@@ -32,16 +32,16 @@
 
 [x] Create thread
 [x] Reply
-[ ] Post validation
+[x] Post validation
 [x] Thread bumping
 [x] Post IDs
 [x] >> references
-[ ] Anonymous posting
-[ ] Subject validation
-[ ] Content length limits
-[ ] Empty post prevention
+[x] Anonymous posting
+[x] Subject validation
+[x] Content length limits
+[x] Empty post prevention
 [ ] Duplicate-post prevention
-[ ] Reply-to-post functionality
+[x] Reply-to-post functionality
 
 
 # Phase 4 — Moderation
@@ -72,7 +72,7 @@
 [ ] CAPTCHA/challenge
 [ ] CSRF testing
 [ ] XSS testing
-[ ] HTML sanitisation
+[x] HTML sanitisation
 [ ] Secure headers
 [ ] Cookie/security settings
 

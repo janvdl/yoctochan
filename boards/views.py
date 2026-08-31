@@ -6,6 +6,17 @@ from .forms import CreateThreadForm, CreatePostForm
 from .models import Board, Thread, Post
 from .services import ThreadService
 
+
+def homepage(request):
+    boards = Board.objects.filter(is_active=True)
+
+    return render(
+        request,
+        "boards/homepage.html",
+        {"boards": boards},
+    )
+
+
 def board(request, board_slug):
     board = get_object_or_404(
         Board,

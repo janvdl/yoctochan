@@ -66,6 +66,25 @@ body > header p {
     margin: 5px 0;
 }
 
+.board-list {
+    margin: 14px auto;
+    padding: 0;
+    list-style: none;
+    max-width: 700px;
+}
+
+.board-list li {
+    margin: 0;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+}
+
+.board-list span {
+    display: block;
+    margin-top: 3px;
+    color: #555;
+}
+
 hr {
     height: 1px;
     margin: 10px 0;
