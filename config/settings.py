@@ -139,6 +139,11 @@ MAX_IMAGE_SIZE = 5 * 1024 * 1024
 # catalogue. Originals within this box are served directly without a thumbnail.
 THUMBNAIL_SIZE = (250, 250)
 
+# Reject a post whose text is identical to another post made to the same thread
+# (replies) or board (new threads) within this many seconds. Guards against
+# double-submits and rapid reposts.
+DUPLICATE_POST_WINDOW_SECONDS = 120
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

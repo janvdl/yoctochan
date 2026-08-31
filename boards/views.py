@@ -7,7 +7,7 @@ from django.db.models.functions import RowNumber
 
 from .forms import CreateThreadForm, CreatePostForm
 from .models import Board, Post, PostReference, Thread
-from .services import ThreadService
+from .services import PostService, ThreadService
 
 
 def bad_request(request, exception=None):
@@ -166,9 +166,15 @@ def create_thread(request, board_slug):
 
         if form.is_valid():
             image = form.cleaned_data["image"]
+            content = form.cleaned_data["content"]
 
             if image and not board.allows_images:
                 form.add_error(None, "This board does not allow images.")
+            elif PostService.is_recent_duplicate(content, board=board):
+                form.add_error(
+                    "content",
+                    "This is a duplicate of a recent post.",
+                )
             else:
                 thread = ThreadService.create_thread(
                     board=board,
@@ -216,9 +222,15 @@ def create_reply(request, board_slug, thread_id):
 
         if form.is_valid():
             image = form.cleaned_data["image"]
+            content = form.cleaned_data["content"]
 
             if image and not thread.board.allows_images:
                 form.add_error(None, "This board does not allow images.")
+            elif PostService.is_recent_duplicate(content, thread=thread):
+                form.add_error(
+                    "content",
+                    "This is a duplicate of a recent post.",
+                )
             else:
                 ThreadService.create_reply(
                     thread=thread,

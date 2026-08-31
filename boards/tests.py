@@ -276,6 +276,67 @@ class ImageUploadTests(TestCase):
         self.assertEqual(thread.posts.count(), 1)
 
 
+class DuplicatePostTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+
+    def reply(self, content):
+        return self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": content},
+        )
+
+    def test_identical_reply_is_rejected(self):
+        self.assertEqual(self.reply("same text").status_code, 302)
+
+        response = self.reply("same text")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "duplicate of a recent post")
+        self.assertEqual(self.thread.posts.count(), 2)
+
+    def test_different_reply_is_allowed(self):
+        self.assertEqual(self.reply("first").status_code, 302)
+        self.assertEqual(self.reply("second").status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 3)
+
+    def test_same_text_in_another_thread_is_allowed(self):
+        self.assertEqual(self.reply("shared line").status_code, 302)
+
+        other = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=other, content="op")
+
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, other.id]),
+            {"content": "shared line"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    @override_settings(DUPLICATE_POST_WINDOW_SECONDS=0)
+    def test_duplicate_allowed_once_window_elapses(self):
+        self.assertEqual(self.reply("later repost").status_code, 302)
+        self.assertEqual(self.reply("later repost").status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 3)
+
+    def test_identical_thread_is_rejected(self):
+        first = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "brand new thread"},
+        )
+        self.assertEqual(first.status_code, 302)
+
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "brand new thread"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "duplicate of a recent post")
+
+
 @override_settings(DEBUG=False)
 class ErrorPageTests(TestCase):
     def test_missing_page_uses_custom_404_template(self):

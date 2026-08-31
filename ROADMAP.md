@@ -40,7 +40,7 @@
 [x] Subject validation
 [x] Content length limits
 [x] Empty post prevention
-[ ] Duplicate-post prevention
+[x] Duplicate-post prevention
 [x] Reply-to-post functionality
 
 

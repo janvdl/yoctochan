@@ -1,3 +1,6 @@
+from datetime import timedelta
+
+from django.conf import settings
 from django.utils import timezone
 
 from .imaging import build_thumbnail
@@ -59,6 +62,35 @@ class ThreadService:
 
 
 class PostService:
+    @staticmethod
+    def is_recent_duplicate(content, *, thread=None, board=None):
+        """
+        True when an identical, non-empty post body was submitted to the same
+        thread (replies) or board (new threads) within
+        ``DUPLICATE_POST_WINDOW_SECONDS``. Image-only posts (empty content) are
+        never treated as duplicates here.
+        """
+        normalised = content.strip()
+
+        if not normalised:
+            return False
+
+        cutoff = timezone.now() - timedelta(
+            seconds=settings.DUPLICATE_POST_WINDOW_SECONDS,
+        )
+
+        posts = Post.objects.filter(
+            created_at__gte=cutoff,
+            content=normalised,
+        )
+
+        if thread is not None:
+            posts = posts.filter(thread=thread)
+        else:
+            posts = posts.filter(thread__board=board)
+
+        return posts.exists()
+
     @staticmethod
     def generate_thumbnail(post):
         """
