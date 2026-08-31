@@ -85,6 +85,19 @@ body > header p {
     color: #555;
 }
 
+.error-page {
+    max-width: 600px;
+    margin: 80px auto;
+    padding: 18px;
+    text-align: center;
+    border: 1px solid var(--rule);
+    background: var(--reply);
+}
+
+.error-page p {
+    color: #000;
+}
+
 hr {
     height: 1px;
     margin: 10px 0;

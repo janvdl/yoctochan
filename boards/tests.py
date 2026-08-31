@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .models import Board
@@ -24,3 +24,14 @@ class HomepageTests(TestCase):
         self.assertContains(response, "An active board.")
         self.assertNotContains(response, "Hidden Board")
         self.assertContains(response, reverse("board", args=[active_board.slug]))
+
+
+@override_settings(DEBUG=False)
+class ErrorPageTests(TestCase):
+    def test_missing_page_uses_custom_404_template(self):
+        response = self.client.get("/not-a-page/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTemplateUsed(response, "404.html")
+        self.assertContains(response, "404: Page not found", status_code=404)
+        self.assertContains(response, reverse("homepage"), status_code=404)

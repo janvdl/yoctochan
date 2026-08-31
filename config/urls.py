@@ -17,6 +17,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+handler400 = "boards.views.bad_request"
+handler403 = "boards.views.permission_denied"
+handler404 = "boards.views.page_not_found"
+handler500 = "boards.views.server_error"
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("boards.urls")),

@@ -1,0 +1,22 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Yoctochan</title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
+</head>
+
+<body>
+
+<main class="error-page">
+    <h1>{% block error_code %}{% endblock %}: {% block error_title %}{% endblock %}</h1>
+    <p>{% block error_message %}{% endblock %}</p>
+    <p><a href="{% url 'homepage' %}">Return to the board list</a></p>
+</main>
+
+</body>
+</html>

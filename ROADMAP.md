@@ -21,7 +21,7 @@
 [x] Basic CSS
 [x] Thread catalogue
 [x] Pagination
-[ ] Error pages
+[x] Error pages
 [x] Greentext
 [x] Automatic URL linking
 [x] >> references
