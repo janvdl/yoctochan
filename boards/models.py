@@ -18,6 +18,9 @@ class Board(models.Model):
         default=3,
     )
 
+    allows_nsfw = models.BooleanField(default=False)
+    allows_images = models.BooleanField(default=True)
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

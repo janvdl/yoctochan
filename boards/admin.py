@@ -9,10 +9,16 @@ class BoardAdmin(admin.ModelAdmin):
         "slug",
         "name",
         "is_active",
+        "allows_nsfw",
+        "allows_images",
         "created_at",
     )
 
-    list_filter = ("is_active",)
+    list_filter = (
+        "is_active",
+        "allows_nsfw",
+        "allows_images",
+    )
 
     search_fields = (
         "slug",

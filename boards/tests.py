@@ -26,6 +26,17 @@ class HomepageTests(TestCase):
         self.assertContains(response, reverse("board", args=[active_board.slug]))
 
 
+class BoardSettingsTests(TestCase):
+    def test_content_settings_have_safe_defaults(self):
+        board = Board.objects.create(
+            slug="test",
+            name="Test Board",
+        )
+
+        self.assertFalse(board.allows_nsfw)
+        self.assertTrue(board.allows_images)
+
+
 @override_settings(DEBUG=False)
 class ErrorPageTests(TestCase):
     def test_missing_page_uses_custom_404_template(self):
