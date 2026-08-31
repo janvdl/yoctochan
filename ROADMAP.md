@@ -100,8 +100,8 @@
 [ ] Post deletion
 [ ] Thread watcher
 [ ] Thread subscriptions
-[ ] Image uploads
-[ ] Thumbnail generation
+[x] Image uploads
+[x] Thumbnail generation
 [ ] EXIF stripping
 [ ] Image hashing
 [ ] Image conversion

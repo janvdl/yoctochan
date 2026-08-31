@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 
@@ -72,6 +74,29 @@ class Post(models.Model):
         max_length=64,
         blank=True,
     )
+
+    image = models.ImageField(
+        upload_to="posts/%Y/%m/%d/",
+        blank=True,
+        width_field="image_width",
+        height_field="image_height",
+        validators=[
+            FileExtensionValidator(
+                allowed_extensions=list(settings.ALLOWED_IMAGE_EXTENSIONS),
+            ),
+        ],
+    )
+    image_width = models.PositiveIntegerField(null=True, blank=True)
+    image_height = models.PositiveIntegerField(null=True, blank=True)
+
+    thumbnail = models.ImageField(
+        upload_to="posts/%Y/%m/%d/thumbs/",
+        blank=True,
+        width_field="thumbnail_width",
+        height_field="thumbnail_height",
+    )
+    thumbnail_width = models.PositiveIntegerField(null=True, blank=True)
+    thumbnail_height = models.PositiveIntegerField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

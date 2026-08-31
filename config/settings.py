@@ -122,6 +122,24 @@ STATICFILES_DIRS = [
 ]
 
 
+# Media files (user uploads)
+
+MEDIA_URL = "media/"
+
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Uploaded images: accepted formats and maximum file size.
+ALLOWED_IMAGE_FORMATS = ("JPEG", "PNG", "GIF", "WEBP")
+
+ALLOWED_IMAGE_EXTENSIONS = ("jpg", "jpeg", "png", "gif", "webp")
+
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
+# Bounding box (width, height) for the thumbnail shown in threads and the
+# catalogue. Originals within this box are served directly without a thumbnail.
+THUMBNAIL_SIZE = (250, 250)
+
+
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 

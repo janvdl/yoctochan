@@ -16,6 +16,25 @@
         {{ post.created_at }}
     </header>
 
+    {% if post.image %}
+        <div class="post-image">
+            <a href="{{ post.image.url }}" target="_blank" rel="noopener noreferrer">
+                {% if post.thumbnail %}
+                    <img src="{{ post.thumbnail.url }}"
+                         data-full-src="{{ post.image.url }}"
+                         width="{{ post.thumbnail_width }}"
+                         height="{{ post.thumbnail_height }}"
+                         alt="Attached image thumbnail">
+                {% else %}
+                    <img src="{{ post.image.url }}"
+                         width="{{ post.image_width }}"
+                         height="{{ post.image_height }}"
+                         alt="Attached image">
+                {% endif %}
+            </a>
+        </div>
+    {% endif %}
+
     <div class="post-content">
         {{ post|render_post }}
     </div>

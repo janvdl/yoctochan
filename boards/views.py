@@ -162,21 +162,27 @@ def create_thread(request, board_slug):
     )
 
     if request.method == "POST":
-        form = CreateThreadForm(request.POST)
+        form = CreateThreadForm(request.POST, request.FILES)
 
         if form.is_valid():
-            thread = ThreadService.create_thread(
-                board=board,
-                subject=form.cleaned_data["subject"],
-                poster_name=form.cleaned_data["poster_name"],
-                content=form.cleaned_data["content"],
-            )
+            image = form.cleaned_data["image"]
 
-            return redirect(
-                "thread",
-                board_slug=board.slug,
-                thread_id=thread.id,
-            )
+            if image and not board.allows_images:
+                form.add_error(None, "This board does not allow images.")
+            else:
+                thread = ThreadService.create_thread(
+                    board=board,
+                    subject=form.cleaned_data["subject"],
+                    poster_name=form.cleaned_data["poster_name"],
+                    content=form.cleaned_data["content"],
+                    image=image,
+                )
+
+                return redirect(
+                    "thread",
+                    board_slug=board.slug,
+                    thread_id=thread.id,
+                )
 
     else:
         form = CreateThreadForm()
@@ -192,7 +198,7 @@ def create_thread(request, board_slug):
 
 def create_reply(request, board_slug, thread_id):
     thread = get_object_or_404(
-        Thread,
+        Thread.objects.select_related("board"),
         id=thread_id,
         board__slug=board_slug,
         board__is_active=True,
@@ -206,20 +212,26 @@ def create_reply(request, board_slug, thread_id):
         )
 
     if request.method == "POST":
-        form = CreatePostForm(request.POST)
+        form = CreatePostForm(request.POST, request.FILES)
 
         if form.is_valid():
-            ThreadService.create_reply(
-                thread=thread,
-                poster_name=form.cleaned_data["poster_name"],
-                content=form.cleaned_data["content"],
-            )
+            image = form.cleaned_data["image"]
 
-            return redirect(
-                "thread",
-                board_slug=board_slug,
-                thread_id=thread.id,
-            )
+            if image and not thread.board.allows_images:
+                form.add_error(None, "This board does not allow images.")
+            else:
+                ThreadService.create_reply(
+                    thread=thread,
+                    poster_name=form.cleaned_data["poster_name"],
+                    content=form.cleaned_data["content"],
+                    image=image,
+                )
+
+                return redirect(
+                    "thread",
+                    board_slug=board_slug,
+                    thread_id=thread.id,
+                )
 
     else:
         form = CreatePostForm()

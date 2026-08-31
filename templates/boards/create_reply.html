@@ -16,7 +16,7 @@
     Reply to Thread #{{ thread.id }}
 </h1>
 
-<form method="post">
+<form method="post" enctype="multipart/form-data">
 
     {% csrf_token %}
 
@@ -41,6 +41,18 @@
             <strong>{{ error }}</strong>
         {% endfor %}
     </p>
+
+    {% if thread.board.allows_images %}
+        <p>
+            {{ form.image.label_tag }}
+            {{ form.image }}
+
+            {% for error in form.image.errors %}
+                <br>
+                <strong>{{ error }}</strong>
+            {% endfor %}
+        </p>
+    {% endif %}
 
     <button type="submit">
         Submit Reply

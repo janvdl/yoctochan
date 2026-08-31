@@ -55,8 +55,18 @@ class PostAdmin(admin.ModelAdmin):
         "id",
         "thread",
         "poster_name",
+        "image",
+        "thumbnail",
         "created_at",
         "deleted",
+    )
+
+    readonly_fields = (
+        "image_width",
+        "image_height",
+        "thumbnail",
+        "thumbnail_width",
+        "thumbnail_height",
     )
 
     list_filter = (

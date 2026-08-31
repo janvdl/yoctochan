@@ -154,6 +154,32 @@ article > header strong {
     color: #000;
 }
 
+.post-image {
+    float: left;
+    margin: 2px 14px 6px 0;
+}
+
+.post-image img {
+    display: block;
+    max-width: 250px;
+    max-height: 250px;
+    border: 1px solid var(--border);
+    background: var(--input);
+    cursor: zoom-in;
+}
+
+.post-image img.expanded {
+    max-width: 100%;
+    max-height: none;
+    cursor: zoom-out;
+}
+
+article::after {
+    content: "";
+    display: block;
+    clear: both;
+}
+
 .post-content {
     min-width: 280px;
     white-space: pre-wrap;
