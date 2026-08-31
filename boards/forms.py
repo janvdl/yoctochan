@@ -43,7 +43,7 @@ class CreateThreadForm(forms.Form):
 
     content = forms.CharField(
         max_length=4_000,
-        required=True,
+        required=False,
         label="Message",
         strip=True,
         widget=forms.Textarea,
@@ -54,16 +54,6 @@ class CreateThreadForm(forms.Form):
         label="Image",
     )
 
-    def clean_content(self):
-        content = self.cleaned_data["content"]
-
-        if not content.strip():
-            raise forms.ValidationError(
-                "Message cannot be empty."
-            )
-
-        return content
-
     def clean_image(self):
         image = self.cleaned_data.get("image")
 
@@ -71,6 +61,19 @@ class CreateThreadForm(forms.Form):
             validate_post_image(image)
 
         return image
+
+    def clean(self):
+        cleaned_data = super().clean()
+        content = (cleaned_data.get("content") or "").strip()
+        image = cleaned_data.get("image")
+
+        if not content and not image:
+            self.add_error(
+                "content",
+                "Message cannot be empty unless an image is attached.",
+            )
+
+        return cleaned_data
 
 
 class CreatePostForm(forms.Form):
@@ -83,7 +86,7 @@ class CreatePostForm(forms.Form):
 
     content = forms.CharField(
         max_length=4_000,
-        required=True,
+        required=False,
         label="Message",
         strip=True,
         widget=forms.Textarea,
@@ -94,16 +97,6 @@ class CreatePostForm(forms.Form):
         label="Image",
     )
 
-    def clean_content(self):
-        content = self.cleaned_data["content"]
-
-        if not content.strip():
-            raise forms.ValidationError(
-                "Message cannot be empty."
-            )
-
-        return content
-
     def clean_image(self):
         image = self.cleaned_data.get("image")
 
@@ -111,3 +104,16 @@ class CreatePostForm(forms.Form):
             validate_post_image(image)
 
         return image
+
+    def clean(self):
+        cleaned_data = super().clean()
+        content = (cleaned_data.get("content") or "").strip()
+        image = cleaned_data.get("image")
+
+        if not content and not image:
+            self.add_error(
+                "content",
+                "Message cannot be empty unless an image is attached.",
+            )
+
+        return cleaned_data

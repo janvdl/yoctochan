@@ -228,6 +228,53 @@ class ImageUploadTests(TestCase):
         self.assertContains(response, "does not allow images")
         self.assertFalse(Post.objects.exists())
 
+    def test_create_thread_image_only_no_message(self):
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "", "image": make_upload()},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        post = Post.objects.get()
+        self.assertEqual(post.content, "")
+        self.assertTrue(post.image.storage.exists(post.image.name))
+
+    def test_reply_image_only_no_message(self):
+        thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=thread, content="op")
+
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, thread.id]),
+            {"content": "", "image": make_upload()},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(thread.posts.exclude(image="").count(), 1)
+
+    def test_create_thread_rejects_empty_without_image(self):
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "   "},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Message cannot be empty")
+        self.assertFalse(Post.objects.exists())
+
+    def test_reply_rejects_empty_without_image(self):
+        thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=thread, content="op")
+
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, thread.id]),
+            {"content": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Message cannot be empty")
+        self.assertEqual(thread.posts.count(), 1)
+
 
 @override_settings(DEBUG=False)
 class ErrorPageTests(TestCase):
