@@ -57,8 +57,8 @@
             <p>
                 Thread No.{{ thread.id }}
                 ·
-                {{ thread.posts.count }}
-                post{{ thread.posts.count|pluralize }}
+                {{ thread.post_count }}
+                post{{ thread.post_count|pluralize }}
             </p>
         </header>
 
@@ -66,7 +66,7 @@
             {% include "boards/post.html" %}
         {% endfor %}
 
-        {% if thread.catalogue_posts|length > board.catalogue_replies %}
+        {% if thread.has_more_catalogue_posts %}
             <p>
                 <a href="{% url 'thread' board.slug thread.id %}">
                     View full thread →

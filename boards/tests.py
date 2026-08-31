@@ -1,7 +1,7 @@
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import Board
+from .models import Board, Post, Thread
 
 
 class HomepageTests(TestCase):
@@ -35,6 +35,36 @@ class BoardSettingsTests(TestCase):
 
         self.assertFalse(board.allows_nsfw)
         self.assertTrue(board.allows_images)
+
+
+class CatalogueTests(TestCase):
+    def test_catalogue_shows_op_and_limited_recent_replies(self):
+        board = Board.objects.create(
+            slug="test",
+            name="Test Board",
+            catalogue_replies=2,
+        )
+        thread = Thread.objects.create(board=board)
+        op = Post.objects.create(thread=thread, content="Original post")
+        first_reply = Post.objects.create(thread=thread, content="First reply")
+        second_reply = Post.objects.create(thread=thread, content="Second reply")
+        third_reply = Post.objects.create(thread=thread, content="Third reply")
+        Post.objects.create(
+            thread=thread,
+            content="Deleted reply",
+            deleted=True,
+        )
+
+        response = self.client.get(reverse("board", args=[board.slug]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, op.content)
+        self.assertNotContains(response, first_reply.content)
+        self.assertContains(response, second_reply.content)
+        self.assertContains(response, third_reply.content)
+        self.assertNotContains(response, "Deleted reply")
+        self.assertEqual(response.context["page_obj"][0].post_count, 4)
+        self.assertContains(response, "View full thread")
 
 
 @override_settings(DEBUG=False)

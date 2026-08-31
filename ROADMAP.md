@@ -25,7 +25,7 @@
 [x] Greentext
 [x] Automatic URL linking
 [x] >> references
-[ ] Efficient catalogue queries
+[x] Efficient catalogue queries
 
 
 # Phase 3 — Writing

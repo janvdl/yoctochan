@@ -19,7 +19,7 @@ def render_post(post):
     # Get the posts this post references.
     references = (
         post.references
-        .select_related("target__thread__board")
+        .all()
     )
 
     referenced_posts = {

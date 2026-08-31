@@ -1,9 +1,12 @@
+from collections import defaultdict
+
 from django.shortcuts import get_object_or_404, redirect, render
 from django.core.paginator import Paginator
-from django.db.models import Count, Prefetch
+from django.db.models import Count, F, Prefetch, Q, Window
+from django.db.models.functions import RowNumber
 
 from .forms import CreateThreadForm, CreatePostForm
-from .models import Board, Thread, Post
+from .models import Board, Post, PostReference, Thread
 from .services import ThreadService
 
 
@@ -42,12 +45,10 @@ def board(request, board_slug):
 
     threads = (
         board.threads
-        .annotate(post_count=Count("posts"))
-        .prefetch_related(
-            Prefetch(
+        .annotate(
+            post_count=Count(
                 "posts",
-                queryset=Post.objects.order_by("-created_at"),
-                to_attr="catalogue_posts",
+                filter=Q(posts__deleted=False),
             )
         )
         .order_by("-pinned", "-bumped_at")
@@ -61,30 +62,68 @@ def board(request, board_slug):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    for thread in page_obj:
-        posts = thread.catalogue_posts
+    page_threads = list(page_obj)
+    thread_ids = [thread.id for thread in page_threads]
 
-        if not posts:
-            thread.catalogue_display_posts = []
-            continue
-
-        # Posts are ordered newest -> oldest,
-        # so the last post is the OP.
-        op = posts[-1]
-
-        # Exclude the OP, then take the newest replies.
-        replies = posts[:-1]
-
-        recent_replies = replies[
-            :board.catalogue_replies
-        ]
-
-        # Display OP first, followed by replies
-        # in chronological order.
-        thread.catalogue_display_posts = (
-            [op]
-            + list(reversed(recent_replies))
+    for thread in page_threads:
+        thread.catalogue_display_posts = []
+        thread.has_more_catalogue_posts = (
+            thread.post_count > board.catalogue_replies + 1
         )
+
+    if thread_ids:
+        catalogue_posts = (
+            Post.objects.filter(
+                thread_id__in=thread_ids,
+                deleted=False,
+            )
+            .annotate(
+                oldest_position=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("thread_id")],
+                    order_by=[F("created_at").asc(), F("id").asc()],
+                ),
+                newest_position=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("thread_id")],
+                    order_by=[F("created_at").desc(), F("id").desc()],
+                ),
+            )
+            .filter(
+                Q(oldest_position=1)
+                | Q(newest_position__lte=board.catalogue_replies)
+            )
+            .prefetch_related(
+                Prefetch(
+                    "references",
+                    queryset=PostReference.objects.select_related(
+                        "target__thread__board"
+                    ),
+                )
+            )
+            .order_by("thread_id", "created_at", "id")
+        )
+
+        posts_by_thread = defaultdict(list)
+        for post in catalogue_posts:
+            posts_by_thread[post.thread_id].append(post)
+
+        for thread in page_threads:
+            posts = posts_by_thread[thread.id]
+
+            if not posts:
+                continue
+
+            op = next(
+                post
+                for post in posts
+                if post.oldest_position == 1
+            )
+
+            replies = [post for post in posts if post.id != op.id]
+
+            # Posts are ordered chronologically, so replies render oldest first.
+            thread.catalogue_display_posts = [op] + replies
 
     return render(
         request,
