@@ -1,0 +1,45 @@
+{% extends "mod/base.html" %}
+{% load post_tags %}
+
+{% block title %}New ban{% endblock %}
+
+{% block content %}
+
+<h2>New ban</h2>
+
+{% if post %}
+    <p>
+        From
+        <a href="{% url 'thread' post.thread.board.slug post.thread_id %}#post-{{ post.id }}">
+            /{{ post.thread.board.slug }}/ No.{{ post.id }}
+        </a>
+    </p>
+    <blockquote class="report-post">{{ post|render_post }}</blockquote>
+{% elif board %}
+    <p>Board: /{{ board.slug }}/</p>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+
+    {% if post %}<input type="hidden" name="post" value="{{ post.id }}">{% endif %}
+    {% if board and not post %}<input type="hidden" name="board" value="{{ board.slug }}">{% endif %}
+
+    {{ form.non_field_errors }}
+
+    {% for field in form %}
+        <p>
+            {{ field.label_tag }}
+            {{ field }}
+            {% for error in field.errors %}
+                <br><strong>{{ error }}</strong>
+            {% endfor %}
+        </p>
+    {% endfor %}
+
+    <button type="submit">Create ban</button>
+</form>
+
+<p><a href="{% url 'mod-bans' %}">Cancel</a></p>
+
+{% endblock %}

@@ -30,4 +30,29 @@ urlpatterns = [
         mod_views.thread_action,
         name="mod-thread-action",
     ),
+    path(
+        "reports/",
+        mod_views.reports,
+        name="mod-reports",
+    ),
+    path(
+        "reports/<int:report_id>/resolve/",
+        mod_views.report_resolve,
+        name="mod-report-resolve",
+    ),
+    path(
+        "bans/",
+        mod_views.bans,
+        name="mod-bans",
+    ),
+    path(
+        "bans/create/",
+        mod_views.ban_create,
+        name="mod-ban-create",
+    ),
+    path(
+        "bans/<int:ban_id>/lift/",
+        mod_views.ban_lift,
+        name="mod-ban-lift",
+    ),
 ]

@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+from datetime import timedelta
 from io import BytesIO
 
 from PIL import Image
@@ -9,8 +10,10 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from .models import Board, ModAction, Moderator, Post, Thread
+from .models import Ban, Board, ModAction, Moderator, Post, Report, Thread
+from .moderation import active_ban_for
 
 
 def make_upload(name="test.png", image_format="PNG", size=(400, 300)):
@@ -607,3 +610,326 @@ class ModerationActionTests(TestCase):
 
         self.assertContains(response, "a reply")
         self.assertContains(response, "restore")
+
+
+class ReportTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        self.post = Post.objects.create(thread=self.thread, content="op")
+
+    def report_url(self):
+        return reverse("report-post", args=[self.post.id])
+
+    def test_anonymous_can_report(self):
+        response = self.client.post(
+            self.report_url(),
+            {"reason": "spam", "detail": "buy pills"},
+            REMOTE_ADDR="5.5.5.5",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        report = Report.objects.get()
+        self.assertEqual(report.reason, "spam")
+        self.assertEqual(report.reporter_ip, "5.5.5.5")
+        self.assertIsNone(report.resolved_at)
+
+    def test_duplicate_open_report_is_deduped(self):
+        for _ in range(2):
+            self.client.post(
+                self.report_url(), {"reason": "spam"}, REMOTE_ADDR="5.5.5.5"
+            )
+
+        self.assertEqual(Report.objects.count(), 1)
+
+    def test_new_report_allowed_after_previous_resolved(self):
+        self.client.post(
+            self.report_url(), {"reason": "spam"}, REMOTE_ADDR="5.5.5.5"
+        )
+        Report.objects.update(resolved_at=timezone.now())
+
+        self.client.post(
+            self.report_url(), {"reason": "rules"}, REMOTE_ADDR="5.5.5.5"
+        )
+
+        self.assertEqual(Report.objects.count(), 2)
+
+    def test_invalid_reason_rerenders(self):
+        response = self.client.post(self.report_url(), {"reason": "nonsense"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Report.objects.exists())
+
+    def test_reporting_deleted_post_404s(self):
+        self.post.set_deleted(True)
+
+        self.assertEqual(self.client.get(self.report_url()).status_code, 404)
+
+
+class ReportsQueueTests(TestCase):
+    def setUp(self):
+        self.board_a = Board.objects.create(slug="a", name="A")
+        self.board_b = Board.objects.create(slug="bb", name="B")
+
+        self.report_a = self._report(self.board_a)
+        self.report_b = self._report(self.board_b)
+
+        self.global_mod = User.objects.create_superuser("root", password="x")
+        self.scoped = User.objects.create_user(
+            "scoped", password="x", is_staff=True
+        )
+        Moderator.objects.create(user=self.scoped).boards.add(self.board_a)
+
+    def _report(self, board):
+        thread = Thread.objects.create(board=board)
+        post = Post.objects.create(thread=thread, content="bad")
+        return Report.objects.create(post=post, reason="spam")
+
+    def test_global_mod_sees_all_reports(self):
+        self.client.force_login(self.global_mod)
+
+        response = self.client.get(reverse("mod-reports"))
+
+        self.assertContains(response, "/a/ No.%d" % self.report_a.post_id)
+        self.assertContains(response, "/bb/ No.%d" % self.report_b.post_id)
+
+    def test_scoped_mod_sees_only_their_board(self):
+        self.client.force_login(self.scoped)
+
+        response = self.client.get(reverse("mod-reports"))
+
+        self.assertContains(response, "/a/ No.%d" % self.report_a.post_id)
+        self.assertNotContains(response, "/bb/ No.%d" % self.report_b.post_id)
+
+    def test_resolve_marks_and_logs(self):
+        self.client.force_login(self.global_mod)
+
+        response = self.client.post(
+            reverse("mod-report-resolve", args=[self.report_a.id])
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.report_a.refresh_from_db()
+        self.assertIsNotNone(self.report_a.resolved_at)
+        self.assertEqual(self.report_a.resolved_by, self.global_mod)
+        self.assertEqual(
+            ModAction.objects.filter(kind="resolve_report").count(), 1
+        )
+
+    def test_scoped_mod_cannot_resolve_other_board(self):
+        self.client.force_login(self.scoped)
+
+        response = self.client.post(
+            reverse("mod-report-resolve", args=[self.report_b.id])
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
+class BanLookupTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.other = Board.objects.create(slug="o", name="Other")
+
+    def test_global_ban_matches_any_board(self):
+        Ban.objects.create(ip_address="1.1.1.1", reason="x")
+
+        self.assertIsNotNone(active_ban_for("1.1.1.1", self.board))
+        self.assertIsNotNone(active_ban_for("1.1.1.1", self.other))
+
+    def test_board_ban_scoped(self):
+        Ban.objects.create(ip_address="1.1.1.1", board=self.board, reason="x")
+
+        self.assertIsNotNone(active_ban_for("1.1.1.1", self.board))
+        self.assertIsNone(active_ban_for("1.1.1.1", self.other))
+
+    def test_expired_and_lifted_bans_ignored(self):
+        Ban.objects.create(
+            ip_address="1.1.1.1",
+            reason="x",
+            expires_at=timezone.now() - timedelta(hours=1),
+        )
+        Ban.objects.create(
+            ip_address="1.1.1.1", reason="x", lifted_at=timezone.now()
+        )
+
+        self.assertIsNone(active_ban_for("1.1.1.1", self.board))
+
+    def test_board_ban_preferred_over_global(self):
+        Ban.objects.create(ip_address="1.1.1.1", reason="global one")
+        Ban.objects.create(
+            ip_address="1.1.1.1", board=self.board, reason="board one"
+        )
+
+        self.assertEqual(
+            active_ban_for("1.1.1.1", self.board).reason, "board one"
+        )
+
+    def test_no_ip_returns_none(self):
+        Ban.objects.create(ip_address="1.1.1.1", reason="x")
+
+        self.assertIsNone(active_ban_for(None, self.board))
+
+
+class BanEnforcementTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.other = Board.objects.create(slug="o", name="Other")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+
+    def test_banned_ip_blocked_on_get_and_post(self):
+        Ban.objects.create(ip_address="7.7.7.7", board=self.board, reason="no")
+
+        get = self.client.get(
+            reverse("create-thread", args=[self.board.slug]),
+            REMOTE_ADDR="7.7.7.7",
+        )
+        self.assertEqual(get.status_code, 403)
+        self.assertTemplateUsed(get, "boards/banned.html")
+
+        post = self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": "hi"},
+            REMOTE_ADDR="7.7.7.7",
+        )
+        self.assertEqual(post.status_code, 403)
+        self.assertEqual(self.thread.posts.count(), 1)
+
+    def test_board_ban_leaves_other_boards_open(self):
+        Ban.objects.create(ip_address="7.7.7.7", board=self.board, reason="no")
+
+        response = self.client.get(
+            reverse("create-thread", args=[self.other.slug]),
+            REMOTE_ADDR="7.7.7.7",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_expired_ban_allows_posting(self):
+        Ban.objects.create(
+            ip_address="7.7.7.7",
+            board=self.board,
+            reason="no",
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "back again"},
+            REMOTE_ADDR="7.7.7.7",
+        )
+        self.assertEqual(response.status_code, 302)
+
+
+class BanCreateTests(TestCase):
+    def setUp(self):
+        self.board_a = Board.objects.create(slug="a", name="A")
+        self.board_b = Board.objects.create(slug="bb", name="B")
+        self.thread = Thread.objects.create(board=self.board_a)
+        self.post = Post.objects.create(
+            thread=self.thread, content="spam", poster_ip="8.8.8.8"
+        )
+
+        self.superuser = User.objects.create_superuser("root", password="x")
+        self.scoped = User.objects.create_user(
+            "scoped", password="x", is_staff=True
+        )
+        Moderator.objects.create(user=self.scoped).boards.add(self.board_a)
+
+    def test_ban_from_post_computes_expiry_and_deletes(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.post(
+            reverse("mod-ban-create"),
+            {
+                "post": self.post.id,
+                "ip_address": "8.8.8.8",
+                "scope": "board",
+                "reason": "spamming",
+                "note": "",
+                "duration": "1w",
+                "delete_post": "on",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ban = Ban.objects.get()
+        self.assertEqual(ban.board, self.board_a)
+        self.assertAlmostEqual(
+            ban.expires_at,
+            timezone.now() + timedelta(weeks=1),
+            delta=timedelta(minutes=1),
+        )
+
+        self.post.refresh_from_db()
+        self.assertTrue(self.post.deleted)
+        self.assertEqual(
+            set(ModAction.objects.values_list("kind", flat=True)),
+            {"ban", "delete_post"},
+        )
+
+    def test_permanent_ban_has_no_expiry(self):
+        self.client.force_login(self.superuser)
+
+        self.client.post(
+            reverse("mod-ban-create"),
+            {
+                "ip_address": "8.8.8.8",
+                "board": self.board_a.slug,
+                "scope": "board",
+                "reason": "x",
+                "duration": "perm",
+            },
+        )
+
+        self.assertIsNone(Ban.objects.get().expires_at)
+
+    def test_scoped_mod_cannot_create_global_ban(self):
+        self.client.force_login(self.scoped)
+
+        response = self.client.post(
+            reverse("mod-ban-create"),
+            {
+                "post": self.post.id,
+                "ip_address": "8.8.8.8",
+                "scope": "global",
+                "reason": "x",
+                "duration": "1d",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)  # form re-rendered
+        self.assertFalse(Ban.objects.exists())
+
+    def test_ban_resolves_open_reports_on_post(self):
+        report = Report.objects.create(post=self.post, reason="spam")
+        self.client.force_login(self.superuser)
+
+        self.client.post(
+            reverse("mod-ban-create"),
+            {
+                "post": self.post.id,
+                "ip_address": "8.8.8.8",
+                "scope": "board",
+                "reason": "x",
+                "duration": "1d",
+            },
+        )
+
+        report.refresh_from_db()
+        self.assertIsNotNone(report.resolved_at)
+
+    def test_ban_lift(self):
+        ban = Ban.objects.create(
+            ip_address="8.8.8.8", board=self.board_a, reason="x"
+        )
+        self.client.force_login(self.superuser)
+
+        response = self.client.post(reverse("mod-ban-lift", args=[ban.id]))
+
+        self.assertEqual(response.status_code, 302)
+        ban.refresh_from_db()
+        self.assertIsNotNone(ban.lifted_at)
+        self.assertEqual(ban.lifted_by, self.superuser)
+        self.assertFalse(ban.is_active())
+        self.assertEqual(ModAction.objects.filter(kind="unban").count(), 1)

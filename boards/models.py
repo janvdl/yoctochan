@@ -6,7 +6,7 @@ from django.utils import timezone
 
 
 # URL prefixes that must never be shadowed by a board slug.
-RESERVED_BOARD_SLUGS = frozenset({"admin", "mod", "static", "media"})
+RESERVED_BOARD_SLUGS = frozenset({"admin", "mod", "static", "media", "report"})
 
 
 def validate_board_slug(value):
@@ -218,6 +218,9 @@ class ModAction(models.Model):
         UNLOCK = "unlock", "Unlock thread"
         STICKY = "sticky", "Sticky thread"
         UNSTICKY = "unsticky", "Unsticky thread"
+        BAN = "ban", "Ban poster"
+        UNBAN = "unban", "Lift ban"
+        RESOLVE_REPORT = "resolve_report", "Resolve report"
 
     moderator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -255,3 +258,107 @@ class ModAction(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} by {self.moderator} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class Report(models.Model):
+    class Reason(models.TextChoices):
+        SPAM = "spam", "Spam / advertising"
+        ILLEGAL = "illegal", "Illegal content"
+        RULES = "rules", "Breaks board rules"
+        OTHER = "other", "Other"
+
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name="reports",
+    )
+    reason = models.CharField(
+        max_length=20,
+        choices=Reason.choices,
+    )
+    detail = models.CharField(max_length=500, blank=True)
+    reporter_ip = models.GenericIPAddressField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def resolve(self, by=None):
+        self.resolved_at = timezone.now()
+        self.resolved_by = by
+        self.save(update_fields=["resolved_at", "resolved_by"])
+
+    def __str__(self):
+        return f"Report on Post No.{self.post_id} ({self.get_reason_display()})"
+
+
+class BanQuerySet(models.QuerySet):
+    def active(self):
+        now = timezone.now()
+        return self.filter(lifted_at__isnull=True).filter(
+            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=now)
+        )
+
+
+class Ban(models.Model):
+    ip_address = models.GenericIPAddressField()
+
+    # No board == a site-wide ban.
+    board = models.ForeignKey(
+        Board,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="bans",
+    )
+
+    reason = models.CharField(max_length=500)  # shown to the banned user
+    note = models.TextField(blank=True)  # internal only
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)  # null == permanent
+
+    lifted_at = models.DateTimeField(null=True, blank=True)
+    lifted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    objects = BanQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def is_active(self):
+        return self.lifted_at is None and (
+            self.expires_at is None or self.expires_at > timezone.now()
+        )
+
+    is_active.boolean = True
+
+    def lift(self, by=None):
+        self.lifted_at = timezone.now()
+        self.lifted_by = by
+        self.save(update_fields=["lifted_at", "lifted_by"])
+
+    def __str__(self):
+        scope = f"/{self.board.slug}/" if self.board_id else "all boards"
+        return f"Ban {self.ip_address} from {scope}"

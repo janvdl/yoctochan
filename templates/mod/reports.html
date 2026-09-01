@@ -1,0 +1,70 @@
+{% extends "mod/base.html" %}
+{% load post_tags %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+
+<h2>{% if show_all %}All reports{% else %}Open reports{% endif %}</h2>
+
+<p>
+    {% if show_all %}
+        <a href="{% url 'mod-reports' %}">Show open only</a>
+    {% else %}
+        <a href="{% url 'mod-reports' %}?show=all">Show all</a>
+    {% endif %}
+</p>
+
+{% if reports %}
+    {% for report in reports %}
+        <section class="report{% if report.resolved_at %} report-resolved{% endif %}">
+            <p>
+                <strong>{{ report.get_reason_display }}</strong>
+                on
+                <a href="{% url 'thread' report.post.thread.board.slug report.post.thread_id %}#post-{{ report.post_id }}">
+                    /{{ report.post.thread.board.slug }}/ No.{{ report.post_id }}
+                </a>
+                · {{ report.created_at }}
+                · reporter {{ report.reporter_ip|default:"unknown" }}
+                {% if report.resolved_at %}
+                    · <em>resolved by {{ report.resolved_by|default:"—" }}</em>
+                {% endif %}
+            </p>
+
+            {% if report.detail %}
+                <p class="report-detail">{{ report.detail }}</p>
+            {% endif %}
+
+            <blockquote class="report-post {% if report.post.deleted %}post-deleted{% endif %}">
+                {{ report.post|render_post }}
+            </blockquote>
+
+            {% if not report.resolved_at %}
+                <div class="mod-bar">
+                    {% if not report.post.deleted %}
+                        <form class="mod-form" method="post"
+                              action="{% url 'mod-post-action' report.post_id 'delete' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <button type="submit">delete post</button>
+                        </form>
+                    {% endif %}
+
+                    <a href="{% url 'mod-ban-create' %}?post={{ report.post_id }}">ban poster</a>
+
+                    <form class="mod-form" method="post"
+                          action="{% url 'mod-report-resolve' report.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit">dismiss</button>
+                    </form>
+                </div>
+            {% endif %}
+        </section>
+        <hr>
+    {% endfor %}
+{% else %}
+    <p>Nothing to review.</p>
+{% endif %}
+
+{% endblock %}

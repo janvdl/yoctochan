@@ -1,6 +1,15 @@
 from django.contrib import admin
 
-from .models import Board, ModAction, Moderator, Post, PostReference, Thread
+from .models import (
+    Ban,
+    Board,
+    ModAction,
+    Moderator,
+    Post,
+    PostReference,
+    Report,
+    Thread,
+)
 
 
 @admin.register(Board)
@@ -144,3 +153,61 @@ class ModActionAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(Report)
+class ReportAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "post",
+        "reason",
+        "reporter_ip",
+        "resolved_at",
+        "resolved_by",
+    )
+
+    list_filter = (
+        "reason",
+        "resolved_at",
+    )
+
+    search_fields = (
+        "detail",
+        "reporter_ip",
+    )
+
+    readonly_fields = (
+        "post",
+        "reason",
+        "detail",
+        "reporter_ip",
+        "created_at",
+    )
+
+
+@admin.register(Ban)
+class BanAdmin(admin.ModelAdmin):
+    list_display = (
+        "ip_address",
+        "board",
+        "is_active",
+        "created_at",
+        "expires_at",
+        "lifted_at",
+        "created_by",
+    )
+
+    list_filter = (
+        "board",
+        "created_at",
+    )
+
+    search_fields = (
+        "ip_address",
+        "reason",
+        "note",
+    )
+
+    readonly_fields = (
+        "created_at",
+    )

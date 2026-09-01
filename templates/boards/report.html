@@ -1,0 +1,69 @@
+{% load static post_tags %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Report post No.{{ post.id }}</title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
+</head>
+
+<body>
+
+<h1>
+    Report post No.{{ post.id }}
+</h1>
+
+<article>
+    <header>
+        <strong>No.{{ post.id }}</strong>
+        {{ post.poster_name|default:"Anonymous" }}
+        {{ post.created_at }}
+    </header>
+    <div class="post-content">
+        {{ post|render_post }}
+    </div>
+</article>
+
+<form method="post">
+
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    <p>
+        {{ form.reason.label_tag }}
+        {{ form.reason }}
+
+        {% for error in form.reason.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
+    </p>
+
+    <p>
+        {{ form.detail.label_tag }}
+        {{ form.detail }}
+
+        {% for error in form.detail.errors %}
+            <br>
+            <strong>{{ error }}</strong>
+        {% endfor %}
+    </p>
+
+    <button type="submit">
+        Submit Report
+    </button>
+
+</form>
+
+<p>
+    <a href="{% url 'thread' post.thread.board.slug post.thread_id %}#post-{{ post.id }}">
+        Return to thread
+    </a>
+</p>
+
+</body>
+</html>

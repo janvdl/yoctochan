@@ -1,0 +1,36 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Banned</title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
+</head>
+
+<body>
+
+<main class="error-page">
+    <h1>You are banned</h1>
+
+    {% if ban.board %}
+        <p>You are banned from posting to /{{ ban.board.slug }}/.</p>
+    {% else %}
+        <p>You are banned from posting to all boards.</p>
+    {% endif %}
+
+    <p><strong>Reason:</strong> {{ ban.reason }}</p>
+
+    {% if ban.expires_at %}
+        <p>This ban expires on {{ ban.expires_at }}.</p>
+    {% else %}
+        <p>This ban does not expire.</p>
+    {% endif %}
+
+    <p><a href="{% url 'homepage' %}">Return to the board list</a></p>
+</main>
+
+</body>
+</html>

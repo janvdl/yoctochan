@@ -1,13 +1,36 @@
 """Helpers for the moderation layer: client IP capture, permission checks,
-and audit logging."""
+ban lookup, and audit logging."""
 
+from datetime import timedelta
 from functools import wraps
 
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
+from django.db.models import F, Q
 
-from .models import ModAction, Moderator
+from .models import Ban, Board, ModAction, Moderator
+
+
+# Preset ban lengths for the moderator ban form: (key, label, duration).
+# A None duration means the ban never expires.
+BAN_DURATIONS = [
+    ("1d", "1 day", timedelta(days=1)),
+    ("3d", "3 days", timedelta(days=3)),
+    ("1w", "1 week", timedelta(weeks=1)),
+    ("2w", "2 weeks", timedelta(weeks=2)),
+    ("1m", "1 month", timedelta(days=30)),
+    ("perm", "Permanent", None),
+]
+
+BAN_DURATION_CHOICES = [(key, label) for key, label, _ in BAN_DURATIONS]
+
+_BAN_DURATION_LOOKUP = {key: delta for key, _, delta in BAN_DURATIONS}
+
+
+def ban_duration_delta(key):
+    """The timedelta for a ``BAN_DURATIONS`` key, or ``None`` for permanent."""
+    return _BAN_DURATION_LOOKUP.get(key)
 
 
 def get_client_ip(request):
@@ -78,6 +101,42 @@ def moderator_required(view):
         return view(request, *args, **kwargs)
 
     return wrapped
+
+
+def moderatable_boards(user):
+    """
+    Boards ``user`` may moderate, as a queryset. Superusers and global
+    moderators get everything; scoped moderators get their assigned boards.
+    """
+    if not user.is_authenticated or not user.is_staff:
+        return Board.objects.none()
+
+    moderator = get_moderator(user)
+
+    if user.is_superuser or (moderator is not None and moderator.is_global()):
+        return Board.objects.all()
+
+    if moderator is None:
+        return Board.objects.none()
+
+    return moderator.boards.all()
+
+
+def active_ban_for(ip, board):
+    """
+    The most specific active ban covering ``ip`` on ``board`` (a board-specific
+    ban wins over a site-wide one), or ``None``.
+    """
+    if not ip:
+        return None
+
+    return (
+        Ban.objects.active()
+        .filter(ip_address=ip)
+        .filter(Q(board__isnull=True) | Q(board=board))
+        .order_by(F("board").desc(nulls_last=True))
+        .first()
+    )
 
 
 def log_action(*, moderator, kind, board=None, thread=None, post=None, note=""):

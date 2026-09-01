@@ -4,6 +4,12 @@
 
 {% block content %}
 
+<p>
+    <a href="{% url 'mod-reports' %}">
+        {{ open_reports }} open report{{ open_reports|pluralize }}
+    </a>
+</p>
+
 <h2>Recent actions</h2>
 
 {% if actions %}

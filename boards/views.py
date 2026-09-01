@@ -1,15 +1,26 @@
 from collections import defaultdict
 
+from django.contrib import messages
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Prefetch, Q, Window
 from django.db.models.functions import RowNumber
 
-from .forms import CreateThreadForm, CreatePostForm
-from .moderation import can_moderate, get_client_ip
-from .models import Board, Post, PostReference, Thread
+from .forms import CreateThreadForm, CreatePostForm, ReportForm
+from .moderation import active_ban_for, can_moderate, get_client_ip
+from .models import Board, Post, PostReference, Report, Thread
 from .services import PostService, ThreadService
+
+
+def _ban_response(request, board):
+    """Render the 'you are banned' page if the client is banned, else None."""
+    ban = active_ban_for(get_client_ip(request), board)
+
+    if ban is None:
+        return None
+
+    return render(request, "boards/banned.html", {"ban": ban}, status=403)
 
 
 def bad_request(request, exception=None):
@@ -171,6 +182,10 @@ def create_thread(request, board_slug):
         is_active=True,
     )
 
+    banned = _ban_response(request, board)
+    if banned:
+        return banned
+
     if request.method == "POST":
         form = CreateThreadForm(request.POST, request.FILES)
 
@@ -221,6 +236,10 @@ def create_reply(request, board_slug, thread_id):
         board__is_active=True,
     )
 
+    banned = _ban_response(request, thread.board)
+    if banned:
+        return banned
+
     if thread.locked:
         return redirect(
             "thread",
@@ -265,6 +284,55 @@ def create_reply(request, board_slug, thread_id):
         "boards/create_reply.html",
         {
             "thread": thread,
+            "form": form,
+        },
+    )
+
+
+def report_post(request, post_id):
+    post = get_object_or_404(
+        Post.objects.select_related("thread__board"),
+        id=post_id,
+        deleted=False,
+    )
+
+    thread_url = redirect(
+        "thread",
+        board_slug=post.thread.board.slug,
+        thread_id=post.thread_id,
+    )
+
+    if request.method == "POST":
+        form = ReportForm(request.POST)
+
+        if form.is_valid():
+            reporter_ip = get_client_ip(request)
+
+            already_open = Report.objects.filter(
+                post=post,
+                reporter_ip=reporter_ip,
+                resolved_at__isnull=True,
+            ).exists()
+
+            if not already_open:
+                Report.objects.create(
+                    post=post,
+                    reason=form.cleaned_data["reason"],
+                    detail=form.cleaned_data["detail"],
+                    reporter_ip=reporter_ip,
+                )
+
+            messages.success(request, "Thanks — your report has been submitted.")
+            return thread_url
+    else:
+        form = ReportForm()
+
+    return render(
+        request,
+        "boards/report.html",
+        {
+            "post": post,
+            "thread": post.thread,
             "form": form,
         },
     )

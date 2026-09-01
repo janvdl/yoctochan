@@ -2,6 +2,9 @@ from django import forms
 from django.conf import settings
 from django.template.defaultfilters import filesizeformat
 
+from .moderation import BAN_DURATION_CHOICES
+from .models import Report
+
 
 def validate_post_image(image):
     """
@@ -74,6 +77,59 @@ class CreateThreadForm(forms.Form):
             )
 
         return cleaned_data
+
+
+class ReportForm(forms.Form):
+    reason = forms.ChoiceField(
+        choices=Report.Reason.choices,
+        label="Reason",
+    )
+
+    detail = forms.CharField(
+        max_length=500,
+        required=False,
+        label="Details (optional)",
+        strip=True,
+        widget=forms.Textarea,
+    )
+
+
+class BanForm(forms.Form):
+    ip_address = forms.GenericIPAddressField(label="IP address")
+
+    scope = forms.ChoiceField(label="Scope")
+
+    reason = forms.CharField(
+        max_length=500,
+        label="Reason (shown to the user)",
+        strip=True,
+    )
+
+    note = forms.CharField(
+        max_length=2_000,
+        required=False,
+        label="Internal note",
+        strip=True,
+        widget=forms.Textarea,
+    )
+
+    duration = forms.ChoiceField(
+        choices=BAN_DURATION_CHOICES,
+        label="Duration",
+    )
+
+    delete_post = forms.BooleanField(
+        required=False,
+        label="Also delete the reported post",
+    )
+
+    def __init__(self, *args, scope_choices=None, from_post=False, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["scope"].choices = scope_choices or [("board", "This board only")]
+
+        if not from_post:
+            del self.fields["delete_post"]
 
 
 class CreatePostForm(forms.Form):

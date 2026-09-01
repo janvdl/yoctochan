@@ -33,4 +33,10 @@ urlpatterns = [
         views.create_reply,
         name="create-reply",
     ),
+
+    path(
+        "report/<int:post_id>/",
+        views.report_post,
+        name="report-post",
+    ),
 ]

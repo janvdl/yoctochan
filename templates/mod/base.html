@@ -16,6 +16,8 @@
         <a href="{% url 'homepage' %}">← Site</a>
         {% if user.is_authenticated %}
             · <a href="{% url 'mod-dashboard' %}">Dashboard</a>
+            · <a href="{% url 'mod-reports' %}">Reports</a>
+            · <a href="{% url 'mod-bans' %}">Bans</a>
             · {{ user.get_username }}
         {% endif %}
     </p>

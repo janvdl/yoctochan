@@ -336,6 +336,34 @@ form strong,
     font-size: 0.9em;
 }
 
+.post-report-link {
+    margin-left: 6px;
+    font-size: 0.85em;
+    color: #888;
+}
+
+.report {
+    margin: 10px 0;
+}
+
+.report-detail {
+    margin: 4px 0;
+    font-style: italic;
+}
+
+.report-post {
+    margin: 4px 0;
+    padding: 4px 8px;
+    border-left: 3px solid var(--rule);
+    color: #000;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.report-resolved {
+    opacity: 0.6;
+}
+
 @media (max-width: 560px) {
     body {
         padding: 6px 7px 20px;

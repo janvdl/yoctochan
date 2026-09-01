@@ -1,0 +1,59 @@
+{% extends "mod/base.html" %}
+
+{% block title %}Bans{% endblock %}
+
+{% block content %}
+
+<h2>Bans</h2>
+
+<p><a href="{% url 'mod-ban-create' %}">New ban</a></p>
+
+{% if bans %}
+    <table class="mod-log">
+        <thead>
+            <tr>
+                <th>IP</th>
+                <th>Scope</th>
+                <th>Reason</th>
+                <th>Created</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ban in bans %}
+                <tr>
+                    <td>{{ ban.ip_address }}</td>
+                    <td>{% if ban.board %}/{{ ban.board.slug }}/{% else %}all boards{% endif %}</td>
+                    <td>{{ ban.reason }}</td>
+                    <td>{{ ban.created_at|date:"Y-m-d H:i" }}</td>
+                    <td>{{ ban.expires_at|date:"Y-m-d H:i"|default:"never" }}</td>
+                    <td>
+                        {% if ban.is_active %}
+                            active
+                        {% elif ban.lifted_at %}
+                            lifted by {{ ban.lifted_by|default:"—" }}
+                        {% else %}
+                            expired
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ban.is_active %}
+                            <form class="mod-form" method="post"
+                                  action="{% url 'mod-ban-lift' ban.id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit">lift</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No bans.</p>
+{% endif %}
+
+{% endblock %}

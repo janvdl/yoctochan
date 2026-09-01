@@ -19,6 +19,9 @@
             <strong class="mod-flag">[deleted]</strong>
         {% endif %}
 
+        <a class="post-report-link" href="{% url 'report-post' post.id %}"
+           title="Report this post">Report</a>
+
         {% if can_moderate %}
             <span class="mod-controls">
                 {% if post.poster_ip %}
@@ -30,6 +33,7 @@
                     <input type="hidden" name="next" value="{{ request.path }}">
                     <button type="submit">{{ post.deleted|yesno:"restore,delete" }}</button>
                 </form>
+                <a href="{% url 'mod-ban-create' %}?post={{ post.id }}">ban</a>
             </span>
         {% endif %}
     </header>

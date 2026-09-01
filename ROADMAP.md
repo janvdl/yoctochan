@@ -50,12 +50,12 @@
 [x] Delete thread
 [x] Lock thread
 [x] Sticky thread
-[ ] Report post
+[x] Report post
 [x] Moderator dashboard
 [x] Moderator permissions
-[ ] Bans
-[ ] Board-specific bans
-[ ] Ban expiry
+[x] Bans
+[x] Board-specific bans
+[x] Ban expiry
 [x] Moderation audit log
 
 
