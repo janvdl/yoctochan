@@ -76,6 +76,7 @@ class PostAdmin(admin.ModelAdmin):
     readonly_fields = (
         "image_width",
         "image_height",
+        "image_hash",
         "thumbnail",
         "thumbnail_width",
         "thumbnail_height",

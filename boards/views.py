@@ -10,7 +10,7 @@ from django.db.models.functions import RowNumber
 from .forms import CreateThreadForm, CreatePostForm, ReportForm
 from .moderation import active_ban_for, can_moderate, get_client_ip
 from .models import Board, Post, PostReference, Report, Thread
-from .services import PostService, RateLimitService, ThreadService
+from .services import PostService, RateLimitService, SpamService, ThreadService
 
 
 def _ban_response(request, board):
@@ -193,6 +193,7 @@ def create_thread(request, board_slug):
         if form.is_valid():
             image = form.cleaned_data["image"]
             content = form.cleaned_data["content"]
+            image_hash = PostService.hash_image(image)
 
             if image and not board.allows_images:
                 form.add_error(None, "This board does not allow images.")
@@ -203,6 +204,10 @@ def create_thread(request, board_slug):
                     None,
                     "You've started too many threads recently. Please wait before starting another.",
                 )
+            elif SpamService.is_spam(content):
+                form.add_error("content", "This looks like spam and can't be posted.")
+            elif image and PostService.is_recent_duplicate_image(image_hash, board=board):
+                form.add_error(None, "This image is a duplicate of a recent post.")
             elif PostService.is_recent_duplicate(content, board=board):
                 form.add_error(
                     "content",
@@ -215,6 +220,7 @@ def create_thread(request, board_slug):
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
+                    image_hash=image_hash,
                     poster_ip=poster_ip,
                 )
 
@@ -262,11 +268,16 @@ def create_reply(request, board_slug, thread_id):
         if form.is_valid():
             image = form.cleaned_data["image"]
             content = form.cleaned_data["content"]
+            image_hash = PostService.hash_image(image)
 
             if image and not thread.board.allows_images:
                 form.add_error(None, "This board does not allow images.")
             elif RateLimitService.is_cooling_down(poster_ip):
                 form.add_error(None, "You're posting too quickly. Please wait a moment.")
+            elif SpamService.is_spam(content):
+                form.add_error("content", "This looks like spam and can't be posted.")
+            elif image and PostService.is_recent_duplicate_image(image_hash, thread=thread):
+                form.add_error(None, "This image is a duplicate of a recent post.")
             elif PostService.is_recent_duplicate(content, thread=thread):
                 form.add_error(
                     "content",
@@ -278,6 +289,7 @@ def create_reply(request, board_slug, thread_id):
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
+                    image_hash=image_hash,
                     poster_ip=poster_ip,
                 )
 

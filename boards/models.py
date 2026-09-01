@@ -126,6 +126,10 @@ class Post(models.Model):
     image_width = models.PositiveIntegerField(null=True, blank=True)
     image_height = models.PositiveIntegerField(null=True, blank=True)
 
+    # SHA-256 of the uploaded image's bytes, used to catch a reposted image
+    # even if it's been renamed. Blank when the post has no image.
+    image_hash = models.CharField(max_length=64, blank=True, db_index=True)
+
     thumbnail = models.ImageField(
         upload_to="posts/%Y/%m/%d/thumbs/",
         blank=True,

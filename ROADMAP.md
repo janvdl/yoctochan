@@ -64,17 +64,17 @@
 [x] Rate limiting
 [x] Flood protection
 [x] IP handling
-[ ] Spam detection
-[ ] Post size limits
+[x] Spam detection
+[x] Post size limits
 [x] Thread creation limits
 [x] Reply cooldown
-[ ] Duplicate content detection
+[x] Duplicate content detection
 [ ] CAPTCHA/challenge
-[ ] CSRF testing
-[ ] XSS testing
+[x] CSRF testing
+[x] XSS testing
 [x] HTML sanitisation
-[ ] Secure headers
-[ ] Cookie/security settings
+[x] Secure headers
+[x] Cookie/security settings
 
 
 # Phase 6 — Performance & Scaling

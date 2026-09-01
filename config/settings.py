@@ -139,10 +139,28 @@ MAX_IMAGE_SIZE = 5 * 1024 * 1024
 # catalogue. Originals within this box are served directly without a thumbnail.
 THUMBNAIL_SIZE = (250, 250)
 
-# Reject a post whose text is identical to another post made to the same thread
-# (replies) or board (new threads) within this many seconds. Guards against
-# double-submits and rapid reposts.
+# Post size limits.
+#
+# Message text is capped at the form level (CreateThreadForm/CreatePostForm,
+# max_length=4_000); images are capped by MAX_IMAGE_SIZE above, checked once
+# the upload is fully received. Everything else in a request body (all
+# non-file fields combined) is bounded by Django's own
+# DATA_UPLOAD_MAX_MEMORY_SIZE, which defaults to 2.5 MB — comfortably above
+# what this form ever sends, so it's left at its default rather than
+# duplicated here.
+
+# Reject a post whose text is identical to another post made to the same
+# thread (replies) or board (new threads) within this many seconds, or whose
+# image is byte-for-byte identical to one made in that window. Guards against
+# double-submits and rapid reposts (including a re-upload of the same file
+# under a new name).
 DUPLICATE_POST_WINDOW_SECONDS = 120
+
+# Spam heuristics: reject a post outright when its text trips one of these.
+# Pure content checks, no external service.
+SPAM_MAX_LINKS = 3  # more than this many http(s):// links in one post
+SPAM_MAX_CHAR_REPEAT = 10  # the same character repeated this many times in a row
+SPAM_BLOCKED_PHRASES = []  # case-insensitive substrings; populate per-deployment
 
 # Minimum time a single IP must wait between posts (thread or reply). Basic
 # flood protection independent of content.
@@ -156,6 +174,27 @@ RATE_LIMIT_THREAD_MAX = 3
 # Set to True only when the app runs behind a reverse proxy that sets a
 # trustworthy X-Forwarded-For header; otherwise poster IPs come from REMOTE_ADDR.
 TRUST_X_FORWARDED_FOR = False
+
+
+# Security: cookies and browser-enforced headers
+# https://docs.djangoproject.com/en/6.1/topics/security/
+#
+# Django's own defaults already cover SESSION_COOKIE_HTTPONLY,
+# SECURE_CONTENT_TYPE_NOSNIFF, X_FRAME_OPTIONS and SECURE_REFERRER_POLICY.
+# CSRF_COOKIE_HTTPONLY is off by default (some sites read the cookie from JS);
+# this app never does, so lock it down.
+CSRF_COOKIE_HTTPONLY = True
+
+# HTTPS-only protections. These would break local `runserver` use over plain
+# HTTP, so they're tied to DEBUG rather than hardcoded — flip DEBUG off for a
+# production deployment (behind HTTPS) and they switch on automatically.
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
+SECURE_SSL_REDIRECT = not DEBUG
+SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000  # 1 year, once behind HTTPS
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
 
 
 # Authentication (moderation area)

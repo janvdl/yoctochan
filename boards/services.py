@@ -1,3 +1,5 @@
+import hashlib
+import re
 from datetime import timedelta
 
 from django.conf import settings
@@ -17,6 +19,7 @@ class ThreadService:
         content,
         image=None,
         poster_ip=None,
+        image_hash="",
     ):
         thread = Thread.objects.create(
             board=board,
@@ -29,6 +32,7 @@ class ThreadService:
             poster_name=poster_name,
             content=content,
             image=image or "",
+            image_hash=image_hash,
             poster_ip=poster_ip,
         )
 
@@ -44,6 +48,7 @@ class ThreadService:
         content,
         image=None,
         poster_ip=None,
+        image_hash="",
     ):
         if thread.locked:
             raise ValueError("Thread is locked.")
@@ -53,6 +58,7 @@ class ThreadService:
             poster_name=poster_name,
             content=content,
             image=image or "",
+            image_hash=image_hash,
             poster_ip=poster_ip,
         )
 
@@ -116,6 +122,33 @@ class RateLimitService:
         return threads_started >= settings.RATE_LIMIT_THREAD_MAX
 
 
+class SpamService:
+    @staticmethod
+    def is_spam(content):
+        """
+        True when ``content`` trips a basic, purely local spam heuristic: too
+        many links, a long run of the same character, or a blocked phrase.
+        Empty content is never spam (image-only posts are handled elsewhere).
+        """
+        normalised = (content or "").strip()
+
+        if not normalised:
+            return False
+
+        if len(re.findall(r"https?://", normalised)) > settings.SPAM_MAX_LINKS:
+            return True
+
+        repeat = settings.SPAM_MAX_CHAR_REPEAT
+        if repeat and re.search(r"(.)\1{%d,}" % (repeat - 1), normalised):
+            return True
+
+        lowered = normalised.lower()
+        if any(phrase.lower() in lowered for phrase in settings.SPAM_BLOCKED_PHRASES):
+            return True
+
+        return False
+
+
 class PostService:
     @staticmethod
     def is_recent_duplicate(content, *, thread=None, board=None):
@@ -137,6 +170,52 @@ class PostService:
         posts = Post.objects.filter(
             created_at__gte=cutoff,
             content=normalised,
+        )
+
+        if thread is not None:
+            posts = posts.filter(thread=thread)
+        else:
+            posts = posts.filter(thread__board=board)
+
+        return posts.exists()
+
+    @staticmethod
+    def hash_image(image):
+        """
+        SHA-256 hex digest of an uploaded image's bytes, or "" when there's no
+        image. Used to catch a reposted image even under a new filename.
+        """
+        if not image:
+            return ""
+
+        image.seek(0)
+        digest = hashlib.sha256()
+
+        for chunk in image.chunks():
+            digest.update(chunk)
+
+        image.seek(0)
+
+        return digest.hexdigest()
+
+    @staticmethod
+    def is_recent_duplicate_image(image_hash, *, thread=None, board=None):
+        """
+        True when a post with the same image (by content hash) was made to the
+        same thread (replies) or board (new threads) within
+        ``DUPLICATE_POST_WINDOW_SECONDS``. A missing hash (no image) is never a
+        duplicate.
+        """
+        if not image_hash:
+            return False
+
+        cutoff = timezone.now() - timedelta(
+            seconds=settings.DUPLICATE_POST_WINDOW_SECONDS,
+        )
+
+        posts = Post.objects.filter(
+            created_at__gte=cutoff,
+            image_hash=image_hash,
         )
 
         if thread is not None:
@@ -179,8 +258,6 @@ class PostService:
         Find >>123 style references in a post and create
         PostReference records for valid posts.
         """
-        import re
-
         post_ids = re.findall(
             r">>(\d+)",
             post.content,

@@ -5,10 +5,11 @@ from io import BytesIO
 
 from PIL import Image
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -343,6 +344,119 @@ class DuplicatePostTests(TestCase):
         self.assertContains(response, "duplicate of a recent post")
 
 
+@override_settings(
+    MEDIA_ROOT=tempfile.mkdtemp(),
+    RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0,
+)
+class DuplicateImageTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+        self.image_bytes = make_upload().read()
+
+    def upload(self, name="repost.png"):
+        return SimpleUploadedFile(name, self.image_bytes, content_type="image/png")
+
+    def reply(self, content, image=None):
+        return self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": content, "image": image or self.upload()},
+        )
+
+    def test_identical_image_reply_is_rejected(self):
+        self.assertEqual(self.reply("first", self.upload("a.png")).status_code, 302)
+
+        response = self.reply("different text", self.upload("b.png"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "duplicate of a recent post")
+        self.assertEqual(self.thread.posts.count(), 2)
+
+    def test_different_image_reply_is_allowed(self):
+        self.assertEqual(self.reply("first", make_upload()).status_code, 302)
+        self.assertEqual(self.reply("second", make_upload()).status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 3)
+
+    def test_same_image_in_another_thread_is_allowed(self):
+        self.assertEqual(self.reply("first").status_code, 302)
+
+        other = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=other, content="op")
+
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, other.id]),
+            {"content": "second", "image": self.upload("c.png")},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    @override_settings(DUPLICATE_POST_WINDOW_SECONDS=0)
+    def test_duplicate_image_allowed_once_window_elapses(self):
+        self.assertEqual(self.reply("first", self.upload("a.png")).status_code, 302)
+        self.assertEqual(self.reply("second", self.upload("b.png")).status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 3)
+
+    def test_identical_thread_image_is_rejected(self):
+        first = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "thread one", "image": self.upload("a.png")},
+        )
+        self.assertEqual(first.status_code, 302)
+
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "thread two", "image": self.upload("b.png")},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "duplicate of a recent post")
+
+
+@override_settings(RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0)
+class SpamDetectionTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+
+    def reply(self, content):
+        return self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": content},
+        )
+
+    def test_normal_post_is_allowed(self):
+        self.assertEqual(self.reply("just a normal reply").status_code, 302)
+
+    def test_too_many_links_is_rejected(self):
+        links = " ".join(f"http://example.com/{i}" for i in range(4))
+
+        response = self.reply(links)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "looks like spam")
+        self.assertEqual(self.thread.posts.count(), 1)
+
+    def test_link_count_at_the_limit_is_allowed(self):
+        links = " ".join(f"http://example.com/{i}" for i in range(3))
+
+        self.assertEqual(self.reply(links).status_code, 302)
+
+    def test_long_character_repeat_is_rejected(self):
+        response = self.reply("a" * 15)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "looks like spam")
+
+    @override_settings(SPAM_BLOCKED_PHRASES=["buy viagra now"])
+    def test_blocked_phrase_is_rejected_case_insensitively(self):
+        response = self.reply("Great deal, BUY VIAGRA NOW at this link")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "looks like spam")
+
+
 @override_settings(DUPLICATE_POST_WINDOW_SECONDS=0)
 class RateLimitTests(TestCase):
     def setUp(self):
@@ -418,6 +532,128 @@ class RateLimitTests(TestCase):
     def test_thread_limit_allowed_once_window_elapses(self):
         self.assertEqual(self.new_thread("thread one").status_code, 302)
         self.assertEqual(self.new_thread("thread two").status_code, 302)
+
+
+class SecurityHeaderTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+
+    def test_default_response_headers(self):
+        response = self.client.get(reverse("homepage"))
+
+        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(response.headers.get("Referrer-Policy"), "same-origin")
+
+    def test_csrf_cookie_is_httponly(self):
+        response = self.client.get(
+            reverse("create-thread", args=[self.board.slug])
+        )
+
+        csrf_cookie = response.cookies.get(settings.CSRF_COOKIE_NAME)
+
+        self.assertIsNotNone(csrf_cookie)
+        self.assertTrue(csrf_cookie["httponly"])
+
+    @override_settings(SESSION_COOKIE_SECURE=True, CSRF_COOKIE_SECURE=True)
+    def test_cookies_are_marked_secure_when_enabled(self):
+        response = self.client.get(
+            reverse("create-thread", args=[self.board.slug])
+        )
+
+        csrf_cookie = response.cookies.get(settings.CSRF_COOKIE_NAME)
+
+        self.assertIsNotNone(csrf_cookie)
+        self.assertTrue(csrf_cookie["secure"])
+
+
+class CsrfProtectionTests(TestCase):
+    """
+    The test client skips CSRF checks by default; these use a client with
+    enforcement turned on to prove CsrfViewMiddleware actually guards the
+    posting endpoints, rather than just trusting it's configured.
+    """
+
+    def setUp(self):
+        self.client = Client(enforce_csrf_checks=True)
+        self.board = Board.objects.create(slug="b", name="Board")
+
+    def test_create_thread_without_token_is_rejected(self):
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "no token here"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Post.objects.count(), 0)
+
+    def test_create_reply_without_token_is_rejected(self):
+        thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=thread, content="op")
+
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, thread.id]),
+            {"content": "no token here"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(thread.posts.count(), 1)
+
+    def test_create_thread_with_valid_token_succeeds(self):
+        self.client.get(reverse("create-thread", args=[self.board.slug]))
+        token = self.client.cookies[settings.CSRF_COOKIE_NAME].value
+
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "with token", "csrfmiddlewaretoken": token},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Post.objects.count(), 1)
+
+
+class XssPreventionTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+
+    def post_and_render(self, content):
+        Post.objects.create(thread=self.thread, content=content)
+
+        return self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+
+    def test_script_tag_is_escaped_not_executed(self):
+        response = self.post_and_render("<script>alert(1)</script>")
+
+        self.assertNotContains(response, "<script>alert(1)</script>")
+        self.assertContains(response, "&lt;script&gt;alert(1)&lt;/script&gt;")
+
+    def test_event_handler_attribute_is_escaped(self):
+        response = self.post_and_render('<img src=x onerror="alert(1)">')
+
+        self.assertNotContains(response, '<img src=x onerror="alert(1)">')
+        self.assertNotContains(response, "onerror=\"alert(1)\"")
+
+    def test_malicious_url_cannot_break_out_of_href(self):
+        response = self.post_and_render(
+            'see https://evil.example/"><script>alert(1)</script> for details'
+        )
+
+        # Content is escaped before URL auto-linking runs, so the raw
+        # quote/angle-bracket sequence must never appear literally...
+        self.assertNotContains(response, '"><script>alert(1)</script>')
+        # ...only its escaped form, safely inert inside the href attribute.
+        self.assertContains(
+            response,
+            "https://evil.example/&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;",
+        )
+
+    def test_javascript_uri_is_not_auto_linked(self):
+        response = self.post_and_render("javascript:alert(1)")
+
+        self.assertNotContains(response, '<a href="javascript:alert(1)"')
 
 
 @override_settings(DEBUG=False)
