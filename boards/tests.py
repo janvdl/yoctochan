@@ -281,6 +281,7 @@ class ImageUploadTests(TestCase):
         self.assertEqual(thread.posts.count(), 1)
 
 
+@override_settings(RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0)
 class DuplicatePostTests(TestCase):
     def setUp(self):
         self.board = Board.objects.create(slug="b", name="Board")
@@ -340,6 +341,83 @@ class DuplicatePostTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "duplicate of a recent post")
+
+
+@override_settings(DUPLICATE_POST_WINDOW_SECONDS=0)
+class RateLimitTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+
+    def reply(self, content, ip="1.1.1.1"):
+        return self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": content},
+            REMOTE_ADDR=ip,
+        )
+
+    def new_thread(self, content, ip="1.1.1.1"):
+        return self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": content},
+            REMOTE_ADDR=ip,
+        )
+
+    def test_second_reply_within_cooldown_is_rejected(self):
+        self.assertEqual(self.reply("first").status_code, 302)
+
+        response = self.reply("second")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "posting too quickly")
+        self.assertEqual(self.thread.posts.count(), 2)
+
+    @override_settings(RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0)
+    def test_reply_allowed_once_cooldown_elapses(self):
+        self.assertEqual(self.reply("first").status_code, 302)
+        self.assertEqual(self.reply("second").status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 3)
+
+    def test_cooldown_is_per_ip(self):
+        self.assertEqual(self.reply("first", ip="1.1.1.1").status_code, 302)
+        self.assertEqual(self.reply("second", ip="2.2.2.2").status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 3)
+
+    def test_missing_ip_is_never_throttled(self):
+        # An empty REMOTE_ADDR resolves to no IP, which should never be
+        # throttled.
+        self.assertEqual(self.reply("first", ip="").status_code, 302)
+        self.assertEqual(self.reply("second", ip="").status_code, 302)
+
+    @override_settings(RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0, RATE_LIMIT_THREAD_MAX=2)
+    def test_thread_creation_limit_is_enforced(self):
+        self.assertEqual(self.new_thread("thread one").status_code, 302)
+        self.assertEqual(self.new_thread("thread two").status_code, 302)
+
+        response = self.new_thread("thread three")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "started too many threads")
+
+    @override_settings(RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0, RATE_LIMIT_THREAD_MAX=2)
+    def test_replies_do_not_count_towards_thread_limit(self):
+        self.assertEqual(self.new_thread("thread one").status_code, 302)
+        self.assertEqual(self.reply("a reply").status_code, 302)
+        self.assertEqual(self.reply("another reply").status_code, 302)
+
+        response = self.new_thread("thread two")
+
+        self.assertEqual(response.status_code, 302)
+
+    @override_settings(
+        RATE_LIMIT_REPLY_COOLDOWN_SECONDS=0,
+        RATE_LIMIT_THREAD_MAX=1,
+        RATE_LIMIT_THREAD_WINDOW_SECONDS=0,
+    )
+    def test_thread_limit_allowed_once_window_elapses(self):
+        self.assertEqual(self.new_thread("thread one").status_code, 302)
+        self.assertEqual(self.new_thread("thread two").status_code, 302)
 
 
 @override_settings(DEBUG=False)

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
 from .imaging import build_thumbnail
@@ -63,6 +64,56 @@ class ThreadService:
         PostService.parse_references(post)
 
         return post
+
+
+class RateLimitService:
+    @staticmethod
+    def is_cooling_down(poster_ip):
+        """
+        True when ``poster_ip`` made any post (thread or reply) more recently
+        than ``RATE_LIMIT_REPLY_COOLDOWN_SECONDS`` ago. Requests without a
+        captured IP are never throttled.
+        """
+        if not poster_ip:
+            return False
+
+        cutoff = timezone.now() - timedelta(
+            seconds=settings.RATE_LIMIT_REPLY_COOLDOWN_SECONDS,
+        )
+
+        return Post.objects.filter(
+            poster_ip=poster_ip,
+            created_at__gte=cutoff,
+        ).exists()
+
+    @staticmethod
+    def has_hit_thread_limit(poster_ip):
+        """
+        True when ``poster_ip`` has started ``RATE_LIMIT_THREAD_MAX`` or more
+        threads (across all boards) within ``RATE_LIMIT_THREAD_WINDOW_SECONDS``.
+        Requests without a captured IP are never throttled.
+        """
+        if not poster_ip:
+            return False
+
+        cutoff = timezone.now() - timedelta(
+            seconds=settings.RATE_LIMIT_THREAD_WINDOW_SECONDS,
+        )
+
+        # A post is an OP if it's the earliest post in its thread.
+        first_post_id = (
+            Post.objects.filter(thread=OuterRef("thread"))
+            .order_by("created_at", "id")
+            .values("id")[:1]
+        )
+
+        threads_started = Post.objects.filter(
+            poster_ip=poster_ip,
+            created_at__gte=cutoff,
+            id=Subquery(first_post_id),
+        ).count()
+
+        return threads_started >= settings.RATE_LIMIT_THREAD_MAX
 
 
 class PostService:

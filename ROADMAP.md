@@ -61,13 +61,13 @@
 
 # Phase 5 — Abuse & Security
 
-[ ] Rate limiting
-[ ] Flood protection
+[x] Rate limiting
+[x] Flood protection
 [x] IP handling
 [ ] Spam detection
 [ ] Post size limits
-[ ] Thread creation limits
-[ ] Reply cooldown
+[x] Thread creation limits
+[x] Reply cooldown
 [ ] Duplicate content detection
 [ ] CAPTCHA/challenge
 [ ] CSRF testing

@@ -10,7 +10,7 @@ from django.db.models.functions import RowNumber
 from .forms import CreateThreadForm, CreatePostForm, ReportForm
 from .moderation import active_ban_for, can_moderate, get_client_ip
 from .models import Board, Post, PostReference, Report, Thread
-from .services import PostService, ThreadService
+from .services import PostService, RateLimitService, ThreadService
 
 
 def _ban_response(request, board):
@@ -188,6 +188,7 @@ def create_thread(request, board_slug):
 
     if request.method == "POST":
         form = CreateThreadForm(request.POST, request.FILES)
+        poster_ip = get_client_ip(request)
 
         if form.is_valid():
             image = form.cleaned_data["image"]
@@ -195,6 +196,13 @@ def create_thread(request, board_slug):
 
             if image and not board.allows_images:
                 form.add_error(None, "This board does not allow images.")
+            elif RateLimitService.is_cooling_down(poster_ip):
+                form.add_error(None, "You're posting too quickly. Please wait a moment.")
+            elif RateLimitService.has_hit_thread_limit(poster_ip):
+                form.add_error(
+                    None,
+                    "You've started too many threads recently. Please wait before starting another.",
+                )
             elif PostService.is_recent_duplicate(content, board=board):
                 form.add_error(
                     "content",
@@ -207,7 +215,7 @@ def create_thread(request, board_slug):
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
-                    poster_ip=get_client_ip(request),
+                    poster_ip=poster_ip,
                 )
 
                 return redirect(
@@ -249,6 +257,7 @@ def create_reply(request, board_slug, thread_id):
 
     if request.method == "POST":
         form = CreatePostForm(request.POST, request.FILES)
+        poster_ip = get_client_ip(request)
 
         if form.is_valid():
             image = form.cleaned_data["image"]
@@ -256,6 +265,8 @@ def create_reply(request, board_slug, thread_id):
 
             if image and not thread.board.allows_images:
                 form.add_error(None, "This board does not allow images.")
+            elif RateLimitService.is_cooling_down(poster_ip):
+                form.add_error(None, "You're posting too quickly. Please wait a moment.")
             elif PostService.is_recent_duplicate(content, thread=thread):
                 form.add_error(
                     "content",
@@ -267,7 +278,7 @@ def create_reply(request, board_slug, thread_id):
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
-                    poster_ip=get_client_ip(request),
+                    poster_ip=poster_ip,
                 )
 
                 return redirect(

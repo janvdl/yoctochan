@@ -144,6 +144,15 @@ THUMBNAIL_SIZE = (250, 250)
 # double-submits and rapid reposts.
 DUPLICATE_POST_WINDOW_SECONDS = 120
 
+# Minimum time a single IP must wait between posts (thread or reply). Basic
+# flood protection independent of content.
+RATE_LIMIT_REPLY_COOLDOWN_SECONDS = 10
+
+# An IP may start at most RATE_LIMIT_THREAD_MAX threads (across all boards)
+# within this many seconds.
+RATE_LIMIT_THREAD_WINDOW_SECONDS = 600
+RATE_LIMIT_THREAD_MAX = 3
+
 # Set to True only when the app runs behind a reverse proxy that sets a
 # trustworthy X-Forwarded-For header; otherwise poster IPs come from REMOTE_ADDR.
 TRUST_X_FORWARDED_FOR = False
