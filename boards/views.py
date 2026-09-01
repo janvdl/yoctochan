@@ -1,11 +1,13 @@
 from collections import defaultdict
 
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Prefetch, Q, Window
 from django.db.models.functions import RowNumber
 
 from .forms import CreateThreadForm, CreatePostForm
+from .moderation import can_moderate, get_client_ip
 from .models import Board, Post, PostReference, Thread
 from .services import PostService, ThreadService
 
@@ -45,6 +47,7 @@ def board(request, board_slug):
 
     threads = (
         board.threads
+        .filter(deleted=False)
         .annotate(
             post_count=Count(
                 "posts",
@@ -131,6 +134,7 @@ def board(request, board_slug):
         {
             "board": board,
             "page_obj": page_obj,
+            "can_moderate": can_moderate(request.user, board),
         },
     )
 
@@ -141,9 +145,14 @@ def thread(request, board_slug, thread_id):
         board__slug=board_slug,
     )
 
-    posts = thread.posts.filter(
-        deleted=False,
-    )
+    moderating = can_moderate(request.user, thread.board)
+
+    if thread.deleted and not moderating:
+        raise Http404
+
+    posts = thread.posts.all()
+    if not moderating:
+        posts = posts.filter(deleted=False)
 
     return render(
         request,
@@ -151,6 +160,7 @@ def thread(request, board_slug, thread_id):
         {
             "thread": thread,
             "posts": posts,
+            "can_moderate": moderating,
         },
     )
 
@@ -182,6 +192,7 @@ def create_thread(request, board_slug):
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
+                    poster_ip=get_client_ip(request),
                 )
 
                 return redirect(
@@ -237,6 +248,7 @@ def create_reply(request, board_slug, thread_id):
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
+                    poster_ip=get_client_ip(request),
                 )
 
                 return redirect(

@@ -6,8 +6,9 @@ project and a work in progress.
 ## Project status
 
 **Early development — not production-ready.** The reading and posting flows work
-end to end, but there is no moderation tooling, no abuse/rate-limiting
-protection, and no deployment/production configuration yet. Runs on SQLite with
+end to end, and there is now basic moderation tooling (soft-delete, lock, sticky,
+an audit log, board-scoped moderators). There is still no abuse/rate-limiting
+protection and no deployment/production configuration. Runs on SQLite with
 Django's development server. Expect breaking changes and schema churn.
 
 Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
@@ -19,7 +20,8 @@ Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 | Posting — create threads, reply, bumping, bump limits, thread locking | Working |
 | Image uploads — one image per post (JPG/PNG/GIF/WebP), server-side thumbnails, click-to-expand | Working |
 | Error pages (400/403/404/500) | Working |
-| Moderation — delete/lock/sticky, reports, bans, mod dashboard | Not started (Django admin only) |
+| Moderation — soft-delete post/thread, lock, sticky, `/mod/` dashboard, audit log, board-scoped moderators, poster IP capture | Working |
+| Moderation — reports, bans, ban expiry | Not started |
 | Abuse & security — rate limiting, flood control, spam detection, CAPTCHA, secure headers | Not started |
 | Performance — caching, Redis, HTMX, background jobs, search, archival | Not started |
 | Production — settings split, deployment, HTTPS, media storage, backups, monitoring | Not started |
@@ -46,6 +48,12 @@ python manage.py runserver
 Then open http://127.0.0.1:8000/. Boards are created through the Django admin at
 `/admin/` (there is no public board-creation UI). Uploaded images are written to
 `media/` in development.
+
+Moderation lives at `/mod/`. Any staff user who is a superuser, or who has a
+`Moderator` record (created in the admin), can log in there; a `Moderator` with
+no boards selected is global, otherwise they are scoped to the boards listed.
+Moderators see inline delete/lock/sticky controls on threads and posts, and
+poster IPs (captured server-side, never shown publicly).
 
 The bundled `config/settings.py` ships with `DEBUG = True` and an insecure
 `SECRET_KEY`; it is for local development only.

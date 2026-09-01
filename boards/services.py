@@ -15,6 +15,7 @@ class ThreadService:
         poster_name,
         content,
         image=None,
+        poster_ip=None,
     ):
         thread = Thread.objects.create(
             board=board,
@@ -27,6 +28,7 @@ class ThreadService:
             poster_name=poster_name,
             content=content,
             image=image or "",
+            poster_ip=poster_ip,
         )
 
         PostService.generate_thumbnail(post)
@@ -40,6 +42,7 @@ class ThreadService:
         poster_name,
         content,
         image=None,
+        poster_ip=None,
     ):
         if thread.locked:
             raise ValueError("Thread is locked.")
@@ -49,6 +52,7 @@ class ThreadService:
             poster_name=poster_name,
             content=content,
             image=image or "",
+            poster_ip=poster_ip,
         )
 
         if thread.can_bump():

@@ -1,0 +1,29 @@
+{% comment %}
+Moderator actions for a thread. Expects `thread` in context and is only
+included when `can_moderate` is true. `next` sends the moderator back to the
+page they acted from.
+{% endcomment %}
+<div class="mod-bar">
+    <span class="mod-bar-label">Mod:</span>
+
+    <form class="mod-form" method="post"
+          action="{% url 'mod-thread-action' thread.id thread.locked|yesno:'unlock,lock' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit">{{ thread.locked|yesno:"unlock,lock" }}</button>
+    </form>
+
+    <form class="mod-form" method="post"
+          action="{% url 'mod-thread-action' thread.id thread.pinned|yesno:'unsticky,sticky' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit">{{ thread.pinned|yesno:"unsticky,sticky" }}</button>
+    </form>
+
+    <form class="mod-form" method="post"
+          action="{% url 'mod-thread-action' thread.id thread.deleted|yesno:'restore,delete' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit">{{ thread.deleted|yesno:"restore thread,delete thread" }}</button>
+    </form>
+</div>

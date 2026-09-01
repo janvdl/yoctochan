@@ -26,6 +26,7 @@ handler500 = "boards.views.server_error"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("mod/", include("boards.mod_urls")),
     path("", include("boards.urls")),
 ]
 

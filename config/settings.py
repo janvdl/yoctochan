@@ -144,6 +144,19 @@ THUMBNAIL_SIZE = (250, 250)
 # double-submits and rapid reposts.
 DUPLICATE_POST_WINDOW_SECONDS = 120
 
+# Set to True only when the app runs behind a reverse proxy that sets a
+# trustworthy X-Forwarded-For header; otherwise poster IPs come from REMOTE_ADDR.
+TRUST_X_FORWARDED_FOR = False
+
+
+# Authentication (moderation area)
+
+LOGIN_URL = "mod-login"
+
+LOGIN_REDIRECT_URL = "mod-dashboard"
+
+LOGOUT_REDIRECT_URL = "mod-login"
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

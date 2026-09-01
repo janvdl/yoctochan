@@ -1,6 +1,6 @@
 {% load post_tags %}
 
-<article id="post-{{ post.id }}">
+<article id="post-{{ post.id }}" class="{% if post.deleted %}post-deleted{% endif %}">
 
     <header>
         <strong>
@@ -14,6 +14,24 @@
         {% endif %}
 
         {{ post.created_at }}
+
+        {% if post.deleted %}
+            <strong class="mod-flag">[deleted]</strong>
+        {% endif %}
+
+        {% if can_moderate %}
+            <span class="mod-controls">
+                {% if post.poster_ip %}
+                    <span class="mod-ip">{{ post.poster_ip }}</span>
+                {% endif %}
+                <form class="mod-form" method="post"
+                      action="{% url 'mod-post-action' post.id post.deleted|yesno:'restore,delete' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit">{{ post.deleted|yesno:"restore,delete" }}</button>
+                </form>
+            </span>
+        {% endif %}
     </header>
 
     {% if post.image %}

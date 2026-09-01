@@ -266,6 +266,76 @@ form strong,
     margin: 0 4px;
 }
 
+/* Moderation controls */
+.mod-form {
+    display: inline;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+.mod-form button {
+    padding: 0 5px;
+    font-size: 0.85em;
+}
+
+.mod-bar {
+    margin: 6px 0;
+    padding: 3px 6px;
+    border: 1px dashed var(--border);
+    background: var(--reply);
+    font-size: 0.9em;
+}
+
+.mod-bar-label {
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.mod-controls {
+    margin-left: 6px;
+}
+
+.mod-ip {
+    margin-right: 5px;
+    font-family: monospace;
+    color: #555;
+}
+
+.mod-flag {
+    color: #d00;
+}
+
+.post-deleted {
+    opacity: 0.55;
+}
+
+.messages {
+    margin: 8px 0;
+    padding: 6px 10px;
+    list-style: none;
+    border: 1px solid var(--metadata);
+    background: #e6f2e6;
+    color: #000;
+}
+
+.mod-log {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0;
+    color: #000;
+}
+
+.mod-log th,
+.mod-log td {
+    padding: 3px 8px;
+    border: 1px solid var(--rule);
+    text-align: left;
+    font-size: 0.9em;
+}
+
 @media (max-width: 560px) {
     body {
         padding: 6px 7px 20px;

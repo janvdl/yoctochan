@@ -4,11 +4,13 @@ from io import BytesIO
 
 from PIL import Image
 
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import Board, Post, Thread
+from .models import Board, ModAction, Moderator, Post, Thread
 
 
 def make_upload(name="test.png", image_format="PNG", size=(400, 300)):
@@ -346,3 +348,262 @@ class ErrorPageTests(TestCase):
         self.assertTemplateUsed(response, "404.html")
         self.assertContains(response, "404: Page not found", status_code=404)
         self.assertContains(response, reverse("homepage"), status_code=404)
+
+
+class PosterIPTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+
+    def test_thread_creation_records_remote_addr(self):
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "hello"},
+            REMOTE_ADDR="203.0.113.7",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Post.objects.get().poster_ip, "203.0.113.7")
+
+    def test_reply_records_remote_addr(self):
+        thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=thread, content="op")
+
+        self.client.post(
+            reverse("create-reply", args=[self.board.slug, thread.id]),
+            {"content": "a reply"},
+            REMOTE_ADDR="198.51.100.4",
+        )
+
+        self.assertEqual(thread.posts.latest("id").poster_ip, "198.51.100.4")
+
+    @override_settings(TRUST_X_FORWARDED_FOR=True)
+    def test_forwarded_for_used_when_trusted(self):
+        self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "proxied"},
+            REMOTE_ADDR="10.0.0.1",
+            HTTP_X_FORWARDED_FOR="70.70.70.70, 10.0.0.1",
+        )
+
+        self.assertEqual(Post.objects.get().poster_ip, "10.0.0.1")
+
+    def test_forwarded_for_ignored_by_default(self):
+        self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "spoof attempt"},
+            REMOTE_ADDR="10.0.0.1",
+            HTTP_X_FORWARDED_FOR="1.2.3.4",
+        )
+
+        self.assertEqual(Post.objects.get().poster_ip, "10.0.0.1")
+
+    def test_ip_never_rendered_publicly(self):
+        thread = Thread.objects.create(board=self.board)
+        Post.objects.create(
+            thread=thread, content="op", poster_ip="203.0.113.9"
+        )
+
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, thread.id])
+        )
+
+        self.assertNotContains(response, "203.0.113.9")
+
+
+class ReservedSlugTests(TestCase):
+    def test_reserved_slug_rejected(self):
+        board = Board(slug="mod", name="Not allowed")
+
+        with self.assertRaises(ValidationError):
+            board.full_clean()
+
+
+class SoftDeletedThreadTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board, subject="Doomed")
+        Post.objects.create(thread=self.thread, content="op body")
+
+    def test_deleted_thread_404s_for_public(self):
+        self.thread.set_deleted(True)
+
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Thread.objects.filter(pk=self.thread.pk).exists())
+
+    def test_deleted_thread_absent_from_board_list(self):
+        self.thread.set_deleted(True)
+
+        response = self.client.get(reverse("board", args=[self.board.slug]))
+
+        self.assertNotContains(response, "Doomed")
+        self.assertNotContains(response, "op body")
+
+    def test_deleted_post_hidden_on_thread_page(self):
+        Post.objects.create(
+            thread=self.thread, content="secret reply", deleted=True
+        )
+
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+
+        self.assertNotContains(response, "secret reply")
+
+
+class ModerationPermissionTests(TestCase):
+    def setUp(self):
+        self.board_a = Board.objects.create(slug="a", name="A")
+        self.board_b = Board.objects.create(slug="b", name="B")
+        self.thread_b = Thread.objects.create(board=self.board_b)
+        Post.objects.create(thread=self.thread_b, content="op")
+
+        self.superuser = User.objects.create_superuser("root", password="x")
+        self.plain = User.objects.create_user("plain", password="x")
+        self.scoped = User.objects.create_user(
+            "scoped", password="x", is_staff=True
+        )
+        scoped_mod = Moderator.objects.create(user=self.scoped)
+        scoped_mod.boards.add(self.board_a)
+
+    def _lock_url(self):
+        return reverse("mod-thread-action", args=[self.thread_b.id, "lock"])
+
+    def test_anonymous_redirected_to_login(self):
+        response = self.client.post(self._lock_url())
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("mod-login"), response.url)
+
+    def test_non_staff_user_forbidden(self):
+        self.client.force_login(self.plain)
+
+        response = self.client.post(self._lock_url())
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("mod-login"), response.url)
+
+    def test_scoped_mod_cannot_touch_other_board(self):
+        self.client.force_login(self.scoped)
+
+        response = self.client.post(self._lock_url())
+
+        self.assertEqual(response.status_code, 403)
+        self.thread_b.refresh_from_db()
+        self.assertFalse(self.thread_b.locked)
+
+    def test_superuser_can_lock(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.post(self._lock_url(), {"next": "/b/"})
+
+        self.assertEqual(response.status_code, 302)
+        self.thread_b.refresh_from_db()
+        self.assertTrue(self.thread_b.locked)
+
+    def test_get_request_rejected(self):
+        self.client.force_login(self.superuser)
+
+        response = self.client.get(self._lock_url())
+
+        self.assertEqual(response.status_code, 405)
+
+
+class ModerationActionTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        self.op = Post.objects.create(thread=self.thread, content="op")
+        self.reply = Post.objects.create(thread=self.thread, content="a reply")
+
+        self.mod = User.objects.create_user(
+            "mod", password="x", is_staff=True
+        )
+        Moderator.objects.create(user=self.mod)  # global
+        self.client.force_login(self.mod)
+
+    def act_post(self, post, action):
+        return self.client.post(
+            reverse("mod-post-action", args=[post.id, action])
+        )
+
+    def act_thread(self, action):
+        return self.client.post(
+            reverse("mod-thread-action", args=[self.thread.id, action])
+        )
+
+    def test_delete_and_restore_post(self):
+        self.act_post(self.reply, "delete")
+        self.reply.refresh_from_db()
+        self.assertTrue(self.reply.deleted)
+        self.assertEqual(self.reply.deleted_by, self.mod)
+        self.assertIsNotNone(self.reply.deleted_at)
+        self.assertEqual(
+            ModAction.objects.filter(kind="delete_post").count(), 1
+        )
+
+        self.act_post(self.reply, "restore")
+        self.reply.refresh_from_db()
+        self.assertFalse(self.reply.deleted)
+        self.assertIsNone(self.reply.deleted_by)
+        self.assertEqual(
+            ModAction.objects.filter(kind="restore_post").count(), 1
+        )
+
+    def test_delete_and_restore_thread(self):
+        self.act_thread("delete")
+        self.thread.refresh_from_db()
+        self.assertTrue(self.thread.deleted)
+
+        self.act_thread("restore")
+        self.thread.refresh_from_db()
+        self.assertFalse(self.thread.deleted)
+
+        self.assertEqual(ModAction.objects.count(), 2)
+
+    def test_lock_blocks_replies(self):
+        self.act_thread("lock")
+        self.thread.refresh_from_db()
+        self.assertTrue(self.thread.locked)
+
+        self.client.logout()
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": "sneaky"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.thread.posts.count(), 2)
+
+    def test_sticky_toggle(self):
+        self.act_thread("sticky")
+        self.thread.refresh_from_db()
+        self.assertTrue(self.thread.pinned)
+
+        self.act_thread("unsticky")
+        self.thread.refresh_from_db()
+        self.assertFalse(self.thread.pinned)
+
+    def test_unknown_action_rejected(self):
+        response = self.act_thread("nuke")
+        self.assertEqual(response.status_code, 403)
+
+    def test_dashboard_lists_actions(self):
+        self.act_thread("lock")
+
+        response = self.client.get(reverse("mod-dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Lock thread")
+
+    def test_moderator_sees_deleted_post_with_restore_control(self):
+        self.reply.set_deleted(True, by=self.mod)
+
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+
+        self.assertContains(response, "a reply")
+        self.assertContains(response, "restore")

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Board, Post, PostReference, Thread
+from .models import Board, ModAction, Moderator, Post, PostReference, Thread
 
 
 @admin.register(Board)
@@ -36,12 +36,14 @@ class ThreadAdmin(admin.ModelAdmin):
         "bumped_at",
         "locked",
         "pinned",
+        "deleted",
     )
 
     list_filter = (
         "board",
         "locked",
         "pinned",
+        "deleted",
     )
 
     search_fields = (
@@ -55,6 +57,7 @@ class PostAdmin(admin.ModelAdmin):
         "id",
         "thread",
         "poster_name",
+        "poster_ip",
         "image",
         "thumbnail",
         "created_at",
@@ -67,6 +70,7 @@ class PostAdmin(admin.ModelAdmin):
         "thumbnail",
         "thumbnail_width",
         "thumbnail_height",
+        "deleted_at",
     )
 
     list_filter = (
@@ -76,6 +80,7 @@ class PostAdmin(admin.ModelAdmin):
     search_fields = (
         "content",
         "poster_name",
+        "poster_ip",
     )
 
 @admin.register(PostReference)
@@ -89,3 +94,53 @@ class PostReferenceAdmin(admin.ModelAdmin):
         "source__content",
         "target__content",
     )
+
+
+@admin.register(Moderator)
+class ModeratorAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "is_global",
+        "can_manage_moderators",
+        "created_at",
+    )
+
+    list_filter = (
+        "can_manage_moderators",
+    )
+
+    search_fields = (
+        "user__username",
+    )
+
+    filter_horizontal = (
+        "boards",
+    )
+
+
+@admin.register(ModAction)
+class ModActionAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "moderator",
+        "kind",
+        "board",
+        "target_thread",
+        "target_post",
+    )
+
+    list_filter = (
+        "kind",
+        "board",
+    )
+
+    search_fields = (
+        "moderator__username",
+        "note",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

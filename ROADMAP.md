@@ -46,24 +46,24 @@
 
 # Phase 4 — Moderation
 
-[ ] Delete post
-[ ] Delete thread
-[ ] Lock thread
-[ ] Sticky thread
+[x] Delete post
+[x] Delete thread
+[x] Lock thread
+[x] Sticky thread
 [ ] Report post
-[ ] Moderator dashboard
-[ ] Moderator permissions
+[x] Moderator dashboard
+[x] Moderator permissions
 [ ] Bans
 [ ] Board-specific bans
 [ ] Ban expiry
-[ ] Moderation audit log
+[x] Moderation audit log
 
 
 # Phase 5 — Abuse & Security
 
 [ ] Rate limiting
 [ ] Flood protection
-[ ] IP handling
+[x] IP handling
 [ ] Spam detection
 [ ] Post size limits
 [ ] Thread creation limits

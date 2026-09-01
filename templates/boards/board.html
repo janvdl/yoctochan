@@ -35,6 +35,14 @@
 
 <hr>
 
+{% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+            <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+{% endif %}
+
 {% for thread in page_obj %}
 
     <section class="catalogue-thread">
@@ -60,6 +68,10 @@
                 {{ thread.post_count }}
                 post{{ thread.post_count|pluralize }}
             </p>
+
+            {% if can_moderate %}
+                {% include "boards/_mod_thread_bar.html" %}
+            {% endif %}
         </header>
 
         {% for post in thread.catalogue_display_posts %}

@@ -1,0 +1,49 @@
+{% extends "mod/base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<h2>Recent actions</h2>
+
+{% if actions %}
+    <table class="mod-log">
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Moderator</th>
+                <th>Action</th>
+                <th>Board</th>
+                <th>Target</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for action in actions %}
+                <tr>
+                    <td>{{ action.created_at }}</td>
+                    <td>{{ action.moderator|default:"—" }}</td>
+                    <td>{{ action.get_kind_display }}</td>
+                    <td>{% if action.board %}/{{ action.board.slug }}/{% else %}—{% endif %}</td>
+                    <td>
+                        {% if action.target_post_id %}
+                            Post No.{{ action.target_post_id }}
+                        {% elif action.target_thread_id %}
+                            Thread #{{ action.target_thread_id }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p>No moderation actions recorded yet.</p>
+{% endif %}
+
+<p>
+    <a href="{% url 'admin:index' %}">Django admin</a>
+    — manage boards, moderators, and view full post details (including IPs).
+</p>
+
+{% endblock %}
