@@ -13,7 +13,15 @@
             Anonymous
         {% endif %}
 
+        {% if post.poster_tripcode %}
+            <span class="tripcode">!{{ post.poster_tripcode }}</span>
+        {% endif %}
+
         {{ post.created_at }}
+
+        {% if post.is_sage %}
+            <span class="sage-flag">(sage)</span>
+        {% endif %}
 
         {% if post.deleted %}
             <strong class="mod-flag">[deleted]</strong>
@@ -60,5 +68,15 @@
     <div class="post-content">
         {{ post|render_post }}
     </div>
+
+    {% if show_backlinks and post.referenced_by.all %}
+        <div class="post-backlinks">
+            Replies:
+            {% for reference in post.referenced_by.all %}
+                <a href="{% url 'thread' reference.source.thread.board.slug reference.source.thread_id %}#post-{{ reference.source.id }}"
+                   class="post-reference">&gt;&gt;{{ reference.source.id }}</a>
+            {% endfor %}
+        </div>
+    {% endif %}
 
 </article>

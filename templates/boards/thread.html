@@ -12,9 +12,12 @@
 
     <link rel="stylesheet" href="{% static 'boards/style.css' %}">
     <script src="{% static 'boards/expand.js' %}" defer></script>
+    <script src="{% static 'boards/you.js' %}" defer></script>
 </head>
 
-<body>
+<body data-thread-id="{{ thread.id }}">
+
+{% include "boards/_watcher.html" %}
 
 <p>
     <a href="{% url 'board' thread.board.slug %}">
@@ -29,6 +32,14 @@
 <p>
     Thread #{{ thread.id }}
     {% if thread.deleted %}<strong class="mod-flag">[deleted]</strong>{% endif %}
+
+    <button type="button" id="watch-thread-toggle" class="watch-toggle"
+            data-board="{{ thread.board.slug }}"
+            data-thread-id="{{ thread.id }}"
+            data-subject="{{ thread.subject|default:'(no subject)' }}"
+            data-post-count="{{ post_count }}">
+        ☆ Watch thread
+    </button>
 </p>
 
 {% if messages %}

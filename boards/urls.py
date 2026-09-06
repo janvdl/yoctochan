@@ -39,4 +39,10 @@ urlpatterns = [
         views.report_post,
         name="report-post",
     ),
+
+    path(
+        "watcher/status/",
+        views.watcher_status,
+        name="watcher-status",
+    ),
 ]

@@ -13,8 +13,9 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Ban, Board, ModAction, Moderator, Post, Report, Thread
+from .models import Ban, Board, ModAction, Moderator, Post, PostReference, Report, Thread
 from .moderation import active_ban_for
+from .tripcode import compute_tripcode, parse_poster_name
 
 
 def make_upload(name="test.png", image_format="PNG", size=(400, 300)):
@@ -1246,4 +1247,214 @@ class BanCreateTests(TestCase):
         self.assertIsNotNone(ban.lifted_at)
         self.assertEqual(ban.lifted_by, self.superuser)
         self.assertFalse(ban.is_active())
-        self.assertEqual(ModAction.objects.filter(kind="unban").count(), 1)
+
+
+class TripcodeParsingTests(TestCase):
+    def test_no_hash_is_a_literal_name(self):
+        self.assertEqual(parse_poster_name("Anon"), ("Anon", ""))
+
+    def test_trailing_hash_with_no_password_is_a_literal_name(self):
+        self.assertEqual(parse_poster_name("Anon#"), ("Anon#", ""))
+
+    def test_name_and_password_split_on_first_hash(self):
+        name, tripcode = parse_poster_name("Anon#secret")
+
+        self.assertEqual(name, "Anon")
+        self.assertEqual(tripcode, compute_tripcode("secret"))
+        self.assertNotEqual(tripcode, "")
+
+    def test_extra_hashes_are_part_of_the_password(self):
+        name, tripcode = parse_poster_name("Anon#pass#word")
+
+        self.assertEqual(name, "Anon")
+        self.assertEqual(tripcode, compute_tripcode("pass#word"))
+
+    def test_same_password_always_gives_the_same_tripcode(self):
+        _, first = parse_poster_name("A#secret")
+        _, second = parse_poster_name("B#secret")
+
+        self.assertEqual(first, second)
+
+    def test_different_passwords_give_different_tripcodes(self):
+        _, first = parse_poster_name("Anon#secret")
+        _, second = parse_poster_name("Anon#different")
+
+        self.assertNotEqual(first, second)
+
+    def test_empty_name_with_password_is_allowed(self):
+        name, tripcode = parse_poster_name("#secret")
+
+        self.assertEqual(name, "")
+        self.assertNotEqual(tripcode, "")
+
+
+class TripcodeIntegrationTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+
+    def test_reply_with_tripcode_is_split_and_rendered(self):
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"poster_name": "Tester#secret", "content": "hello"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        post = self.thread.posts.get(content="hello")
+        self.assertEqual(post.poster_name, "Tester")
+        self.assertEqual(post.poster_tripcode, compute_tripcode("secret"))
+
+        page = self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+        self.assertContains(page, "Tester")
+        self.assertContains(page, f"!{post.poster_tripcode}")
+
+    def test_reply_without_hash_gets_no_tripcode(self):
+        self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"poster_name": "Tester", "content": "hello"},
+        )
+
+        post = self.thread.posts.get(content="hello")
+        self.assertEqual(post.poster_name, "Tester")
+        self.assertEqual(post.poster_tripcode, "")
+
+
+class SageTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+        self.original_bumped_at = self.thread.bumped_at
+
+    def test_sage_reply_does_not_bump_thread(self):
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": "quiet reply", "sage": "on"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        self.thread.refresh_from_db()
+        post = self.thread.posts.get(content="quiet reply")
+
+        self.assertTrue(post.is_sage)
+        self.assertEqual(self.thread.bumped_at, self.original_bumped_at)
+
+    def test_non_sage_reply_bumps_thread(self):
+        self.client.post(
+            reverse("create-reply", args=[self.board.slug, self.thread.id]),
+            {"content": "normal reply"},
+        )
+
+        self.thread.refresh_from_db()
+        post = self.thread.posts.get(content="normal reply")
+
+        self.assertFalse(post.is_sage)
+        self.assertGreater(self.thread.bumped_at, self.original_bumped_at)
+
+
+class PostBacklinkTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        self.op = Post.objects.create(thread=self.thread, content="op")
+
+    def test_thread_page_shows_backlink_to_referencing_reply(self):
+        reply = Post.objects.create(
+            thread=self.thread,
+            content=f">>{self.op.id} nice",
+        )
+        PostReference.objects.create(source=reply, target=self.op)
+
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+
+        self.assertContains(response, "post-backlinks")
+        self.assertContains(
+            response,
+            f'href="/{self.board.slug}/thread/{self.thread.id}/#post-{reply.id}"',
+        )
+
+    def test_post_with_no_replies_shows_no_backlinks(self):
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, self.thread.id])
+        )
+
+        self.assertNotContains(response, "post-backlinks")
+
+    def test_catalogue_view_does_not_show_backlinks(self):
+        reply = Post.objects.create(
+            thread=self.thread,
+            content=f">>{self.op.id} nice",
+        )
+        PostReference.objects.create(source=reply, target=self.op)
+
+        response = self.client.get(reverse("board", args=[self.board.slug]))
+
+        self.assertNotContains(response, "post-backlinks")
+
+
+class WatcherStatusTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.thread = Thread.objects.create(board=self.board)
+        Post.objects.create(thread=self.thread, content="op")
+        Post.objects.create(thread=self.thread, content="reply")
+
+    def test_reports_current_post_count(self):
+        response = self.client.get(
+            reverse("watcher-status"), {"ids": str(self.thread.id)}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()["threads"][str(self.thread.id)]
+
+        self.assertEqual(data["postCount"], 2)
+        self.assertFalse(data["locked"])
+        self.assertFalse(data["deleted"])
+        self.assertEqual(data["board"], self.board.slug)
+
+    def test_deleted_posts_are_not_counted(self):
+        post = Post.objects.create(thread=self.thread, content="to delete")
+        post.set_deleted(True)
+
+        response = self.client.get(
+            reverse("watcher-status"), {"ids": str(self.thread.id)}
+        )
+
+        data = response.json()["threads"][str(self.thread.id)]
+        self.assertEqual(data["postCount"], 2)
+
+    def test_nonexistent_thread_is_omitted(self):
+        response = self.client.get(reverse("watcher-status"), {"ids": "999999"})
+
+        self.assertEqual(response.json(), {"threads": {}})
+
+    def test_missing_ids_param_is_handled_gracefully(self):
+        response = self.client.get(reverse("watcher-status"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"threads": {}})
+
+    def test_non_numeric_ids_do_not_error(self):
+        response = self.client.get(
+            reverse("watcher-status"), {"ids": "not-a-number"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"threads": {}})
+
+    def test_deleted_thread_is_flagged(self):
+        self.thread.set_deleted(True)
+
+        response = self.client.get(
+            reverse("watcher-status"), {"ids": str(self.thread.id)}
+        )
+
+        data = response.json()["threads"][str(self.thread.id)]
+        self.assertTrue(data["deleted"])

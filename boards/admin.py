@@ -66,6 +66,8 @@ class PostAdmin(admin.ModelAdmin):
         "id",
         "thread",
         "poster_name",
+        "poster_tripcode",
+        "is_sage",
         "poster_ip",
         "image",
         "thumbnail",
@@ -74,6 +76,7 @@ class PostAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = (
+        "poster_tripcode",
         "image_width",
         "image_height",
         "image_hash",
@@ -85,6 +88,7 @@ class PostAdmin(admin.ModelAdmin):
 
     list_filter = (
         "deleted",
+        "is_sage",
     )
 
     search_fields = (

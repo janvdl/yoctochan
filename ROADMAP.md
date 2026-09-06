@@ -92,14 +92,14 @@
 
 # Phase 7 — Imageboard Features
 
-[ ] Tripcodes
-[ ] Sage
-[ ] Name field
-[ ] Post backlinks
-[ ] "You" highlighting
+[x] Tripcodes
+[x] Sage
+[x] Name field
+[x] Post backlinks
+[x] "You" highlighting
 [ ] Post deletion
-[ ] Thread watcher
-[ ] Thread subscriptions
+[x] Thread watcher
+[x] Thread subscriptions
 [x] Image uploads
 [x] Thumbnail generation
 [ ] EXIF stripping

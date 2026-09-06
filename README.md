@@ -6,14 +6,16 @@ project and a work in progress.
 ## Project status
 
 **Early development — not production-ready.** The reading and posting flows work
-end to end, Phase 4 moderation is complete (soft-delete, lock, sticky, an
-audit log, board-scoped moderators, poster-IP capture, a report queue, and
-IP bans with expiry), and Phase 5 abuse/security protections are in place
-(rate limiting, spam/duplicate detection, secure headers and cookies) aside
-from a CAPTCHA, which is deliberately deferred. Settings are split into
-dev/prod modules driven by environment variables, and the database can be
-SQLite (default, zero setup) or PostgreSQL. There is still no deployment
-configuration. Expect breaking changes and schema churn.
+end to end, with most of the classic imageboard posting conventions
+(tripcodes, sage, backlinks, "You" highlighting, a client-side thread
+watcher) in place. Phase 4 moderation is complete (soft-delete, lock,
+sticky, an audit log, board-scoped moderators, poster-IP capture, a report
+queue, and IP bans with expiry), and Phase 5 abuse/security protections are
+in place (rate limiting, spam/duplicate detection, secure headers and
+cookies) aside from a CAPTCHA, which is deliberately deferred. Settings are
+split into dev/prod modules driven by environment variables, and the
+database can be SQLite (default, zero setup) or PostgreSQL. There is still
+no deployment configuration. Expect breaking changes and schema churn.
 
 Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 
@@ -22,6 +24,7 @@ Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 | Browsing — homepage, board index, threads, catalogue, pagination | Working |
 | Post rendering — greentext, `>>` post references, auto-linking, HTML escaping | Working |
 | Posting — create threads, reply, bumping, bump limits, thread locking | Working |
+| Imageboard conventions — name field, tripcodes, sage, backlinks, "You" highlighting, thread watcher | Working |
 | Image uploads — one image per post (JPG/PNG/GIF/WebP), server-side thumbnails, click-to-expand | Working |
 | Error pages (400/403/404/500) | Working |
 | Moderation — soft-delete post/thread, lock, sticky, `/mod/` dashboard, audit log, board-scoped moderators, poster IP capture, report queue, IP bans (global + per-board) with expiry | Working |
@@ -70,6 +73,17 @@ settings but refuses to start unless `DJANGO_DEBUG=false`, a real
 your WSGI/ASGI server. There's no production deployment story beyond that
 yet (Phase 8).
 
+Posting supports a few classic imageboard conventions on top of the plain
+name field: typing `Name#password` derives a tripcode (`!xxxxxxxxxx`) from
+the password so a poster can prove they're the same person across posts,
+without an account — the password itself is salted with `SECRET_KEY` and
+never recoverable from it. A reply can be marked "sage" to post without
+bumping the thread. Each post shows a "Replies:" backlink to any post that
+`>>`-referenced it. "You" highlighting and the thread watcher (a small
+persistent widget listing threads you've pinned, with new-reply counts) are
+both client-side only, backed by this browser's `localStorage` — there's no
+poster account for either to attach to server-side.
+
 Moderation lives at `/mod/`. Any staff user who is a superuser, or who has a
 `Moderator` record (created in the admin), can log in there; a `Moderator` with
 no boards selected is global, otherwise they are scoped to the boards listed.
@@ -79,9 +93,6 @@ IPs (captured server-side, never shown publicly), a report queue at
 are global or per-board, carry a preset duration (or permanent), and block
 posting with a "you are banned" page until they expire or are lifted. A scoped
 moderator can only issue bans for their own boards.
-
-The bundled `config/settings.py` ships with `DEBUG = True` and an insecure
-`SECRET_KEY`; it is for local development only.
 
 ## Running the tests
 

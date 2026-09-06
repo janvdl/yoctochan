@@ -35,6 +35,7 @@
     <p>
         {{ form.poster_name.label_tag }}
         {{ form.poster_name }}
+        <span class="form-help">{{ form.poster_name.help_text }}</span>
 
         {% for error in form.poster_name.errors %}
             <br>

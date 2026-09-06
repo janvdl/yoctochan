@@ -42,6 +42,7 @@ class CreateThreadForm(forms.Form):
         required=False,
         label="Name",
         strip=True,
+        help_text="Add #password for a tripcode.",
     )
 
     content = forms.CharField(
@@ -138,6 +139,7 @@ class CreatePostForm(forms.Form):
         required=False,
         label="Name",
         strip=True,
+        help_text="Add #password for a tripcode.",
     )
 
     content = forms.CharField(
@@ -151,6 +153,11 @@ class CreatePostForm(forms.Form):
     image = forms.ImageField(
         required=False,
         label="Image",
+    )
+
+    sage = forms.BooleanField(
+        required=False,
+        label="Sage (don't bump this thread)",
     )
 
     def clean_image(self):

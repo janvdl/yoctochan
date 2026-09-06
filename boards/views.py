@@ -1,8 +1,9 @@
 from collections import defaultdict
 
 from django.contrib import messages
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Prefetch, Q, Window
 from django.db.models.functions import RowNumber
@@ -161,9 +162,20 @@ def thread(request, board_slug, thread_id):
     if thread.deleted and not moderating:
         raise Http404
 
-    posts = thread.posts.all()
+    posts = thread.posts.prefetch_related(
+        Prefetch(
+            "references",
+            queryset=PostReference.objects.select_related("target__thread__board"),
+        ),
+        Prefetch(
+            "referenced_by",
+            queryset=PostReference.objects.select_related("source__thread__board"),
+        ),
+    )
     if not moderating:
         posts = posts.filter(deleted=False)
+
+    posts = list(posts)
 
     return render(
         request,
@@ -171,7 +183,9 @@ def thread(request, board_slug, thread_id):
         {
             "thread": thread,
             "posts": posts,
+            "post_count": len(posts),
             "can_moderate": moderating,
+            "show_backlinks": True,
         },
     )
 
@@ -214,7 +228,7 @@ def create_thread(request, board_slug):
                     "This is a duplicate of a recent post.",
                 )
             else:
-                thread = ThreadService.create_thread(
+                post = ThreadService.create_thread(
                     board=board,
                     subject=form.cleaned_data["subject"],
                     poster_name=form.cleaned_data["poster_name"],
@@ -225,9 +239,14 @@ def create_thread(request, board_slug):
                 )
 
                 return redirect(
-                    "thread",
-                    board_slug=board.slug,
-                    thread_id=thread.id,
+                    reverse(
+                        "thread",
+                        kwargs={
+                            "board_slug": board.slug,
+                            "thread_id": post.thread_id,
+                        },
+                    )
+                    + f"#post-{post.id}"
                 )
 
     else:
@@ -284,19 +303,25 @@ def create_reply(request, board_slug, thread_id):
                     "This is a duplicate of a recent post.",
                 )
             else:
-                ThreadService.create_reply(
+                post = ThreadService.create_reply(
                     thread=thread,
                     poster_name=form.cleaned_data["poster_name"],
                     content=form.cleaned_data["content"],
                     image=image,
                     image_hash=image_hash,
                     poster_ip=poster_ip,
+                    sage=form.cleaned_data["sage"],
                 )
 
                 return redirect(
-                    "thread",
-                    board_slug=board_slug,
-                    thread_id=thread.id,
+                    reverse(
+                        "thread",
+                        kwargs={
+                            "board_slug": board_slug,
+                            "thread_id": thread.id,
+                        },
+                    )
+                    + f"#post-{post.id}"
                 )
 
     else:
@@ -359,3 +384,39 @@ def report_post(request, post_id):
             "form": form,
         },
     )
+
+
+def watcher_status(request):
+    """
+    JSON status for the client-side thread watcher (static/boards/watcher.js).
+    Given ``?ids=1,2,3``, reports each thread's current (non-deleted) post
+    count plus its locked/deleted state — enough for the widget to show
+    new-reply counts and drop threads that no longer exist, without any
+    server-side notion of "who is watching what" (that lives in the
+    visitor's own localStorage).
+    """
+    raw_ids = request.GET.get("ids", "")
+
+    try:
+        ids = {int(value) for value in raw_ids.split(",") if value.strip()}
+    except ValueError:
+        ids = set()
+
+    # A generous cap — the widget realistically never watches this many.
+    ids = list(ids)[:200]
+
+    rows = Thread.objects.filter(id__in=ids).annotate(
+        post_count=Count("posts", filter=Q(posts__deleted=False)),
+    ).values("id", "board__slug", "post_count", "locked", "deleted")
+
+    threads = {
+        str(row["id"]): {
+            "board": row["board__slug"],
+            "postCount": row["post_count"],
+            "locked": row["locked"],
+            "deleted": row["deleted"],
+        }
+        for row in rows
+    }
+
+    return JsonResponse({"threads": threads})

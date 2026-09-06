@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from .imaging import build_thumbnail
 from .models import Board, Post, PostReference, Thread
+from .tripcode import parse_poster_name
 
 
 class ThreadService:
@@ -27,9 +28,12 @@ class ThreadService:
             bumped_at=timezone.now(),
         )
 
+        display_name, tripcode = parse_poster_name(poster_name)
+
         post = Post.objects.create(
             thread=thread,
-            poster_name=poster_name,
+            poster_name=display_name,
+            poster_tripcode=tripcode,
             content=content,
             image=image or "",
             image_hash=image_hash,
@@ -39,7 +43,7 @@ class ThreadService:
         PostService.generate_thumbnail(post)
         PostService.parse_references(post)
 
-        return thread
+        return post
 
     @staticmethod
     def create_reply(
@@ -49,20 +53,25 @@ class ThreadService:
         image=None,
         poster_ip=None,
         image_hash="",
+        sage=False,
     ):
         if thread.locked:
             raise ValueError("Thread is locked.")
 
+        display_name, tripcode = parse_poster_name(poster_name)
+
         post = Post.objects.create(
             thread=thread,
-            poster_name=poster_name,
+            poster_name=display_name,
+            poster_tripcode=tripcode,
             content=content,
             image=image or "",
             image_hash=image_hash,
             poster_ip=poster_ip,
+            is_sage=sage,
         )
 
-        if thread.can_bump():
+        if not sage and thread.can_bump():
             thread.bumped_at = timezone.now()
             thread.save(update_fields=["bumped_at"])
 

@@ -6,7 +6,7 @@ from django.utils import timezone
 
 
 # URL prefixes that must never be shadowed by a board slug.
-RESERVED_BOARD_SLUGS = frozenset({"admin", "mod", "static", "media", "report"})
+RESERVED_BOARD_SLUGS = frozenset({"admin", "mod", "static", "media", "report", "watcher"})
 
 
 def validate_board_slug(value):
@@ -108,6 +108,14 @@ class Post(models.Model):
         max_length=64,
         blank=True,
     )
+
+    # Derived from a "Name#password" submission (see boards/tripcode.py).
+    # Blank when the poster didn't supply a password.
+    poster_tripcode = models.CharField(max_length=16, blank=True)
+
+    # True for a reply posted with "sage": it doesn't bump the thread.
+    # Meaningless (always False) on an OP.
+    is_sage = models.BooleanField(default=False)
 
     # Captured server-side; never rendered publicly, mod/admin only.
     poster_ip = models.GenericIPAddressField(null=True, blank=True)
