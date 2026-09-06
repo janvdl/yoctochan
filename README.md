@@ -6,11 +6,14 @@ project and a work in progress.
 ## Project status
 
 **Early development — not production-ready.** The reading and posting flows work
-end to end, and Phase 4 moderation is complete (soft-delete, lock, sticky, an
+end to end, Phase 4 moderation is complete (soft-delete, lock, sticky, an
 audit log, board-scoped moderators, poster-IP capture, a report queue, and
-IP bans with expiry). There is still no automated abuse/rate-limiting
-protection and no deployment/production configuration. Runs on SQLite with
-Django's development server. Expect breaking changes and schema churn.
+IP bans with expiry), and Phase 5 abuse/security protections are in place
+(rate limiting, spam/duplicate detection, secure headers and cookies) aside
+from a CAPTCHA, which is deliberately deferred. Settings are split into
+dev/prod modules driven by environment variables, and the database can be
+SQLite (default, zero setup) or PostgreSQL. There is still no deployment
+configuration. Expect breaking changes and schema churn.
 
 Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 
@@ -22,14 +25,15 @@ Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 | Image uploads — one image per post (JPG/PNG/GIF/WebP), server-side thumbnails, click-to-expand | Working |
 | Error pages (400/403/404/500) | Working |
 | Moderation — soft-delete post/thread, lock, sticky, `/mod/` dashboard, audit log, board-scoped moderators, poster IP capture, report queue, IP bans (global + per-board) with expiry | Working |
-| Abuse & security — rate limiting, flood control, spam detection, CAPTCHA, secure headers | Not started |
+| Abuse & security — rate limiting, flood control, spam detection, secure headers | Working (no CAPTCHA yet) |
 | Performance — caching, Redis, HTMX, background jobs, search, archival | Not started |
-| Production — settings split, deployment, HTTPS, media storage, backups, monitoring | Not started |
+| Config — environment-driven settings, dev/prod split, PostgreSQL | Working |
+| Production — deployment, HTTPS, media storage, backups, monitoring | Not started |
 
 ## Tech stack
 
 - Python 3.13, [Django](https://www.djangoproject.com/) 6.1
-- SQLite for now (PostgreSQL planned)
+- SQLite by default; PostgreSQL supported (via [psycopg](https://www.psycopg.org/))
 - [Pillow](https://python-pillow.org/) for image handling and thumbnails
 - Server-rendered templates, plain CSS, a small amount of vanilla JavaScript (no frontend framework)
 
@@ -48,6 +52,23 @@ python manage.py runserver
 Then open http://127.0.0.1:8000/. Boards are created through the Django admin at
 `/admin/` (there is no public board-creation UI). Uploaded images are written to
 `media/` in development.
+
+No configuration is required for the above — it runs with `DEBUG = True`, an
+insecure development `SECRET_KEY`, and SQLite. To override any of that
+(including switching to PostgreSQL), copy `.env.example` to `.env` and fill
+in what you need; `config/settings/base.py` reads it automatically and real
+environment variables always take precedence over `.env`. See
+`.env.example` for the full list of variables, including `DATABASE_ENGINE`,
+`POSTGRES_*`, `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, and `DJANGO_ALLOWED_HOSTS`.
+
+Settings are split into `config/settings/dev.py` (the default) and
+`config/settings/prod.py`. `prod.py` shares the same environment-driven
+settings but refuses to start unless `DJANGO_DEBUG=false`, a real
+`DJANGO_SECRET_KEY` (not the dev fallback), and a non-empty
+`DJANGO_ALLOWED_HOSTS` are all set — select it by exporting
+`DJANGO_SETTINGS_MODULE=config.settings.prod` before running `manage.py` or
+your WSGI/ASGI server. There's no production deployment story beyond that
+yet (Phase 8).
 
 Moderation lives at `/mod/`. Any staff user who is a superuser, or who has a
 `Moderator` record (created in the admin), can log in there; a `Moderator` with

@@ -1,14 +1,14 @@
 # Phase 1 — Skeleton
 
 [x] Create Django project
-[ ] Configure PostgreSQL
+[x] Configure PostgreSQL
 [x] Create Board model
 [x] Create Thread model
 [x] Create Post model
 [x] Django admin
 [x] Static files
-[ ] Environment/config management
-[ ] Development/production settings
+[x] Environment/config management
+[x] Development/production settings
 
 
 # Phase 2 — Reading
