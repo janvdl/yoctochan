@@ -42,8 +42,34 @@ class ThreadService:
 
         PostService.generate_thumbnail(post)
         PostService.parse_references(post)
+        ThreadService.archive_overflowing_threads(board)
 
         return post
+
+    @staticmethod
+    def archive_overflowing_threads(board):
+        """
+        Archive the oldest (by bump order), non-pinned active threads on
+        ``board`` once it has more than ``max_pages * threads_per_page`` of
+        them. A new thread is the only thing that can grow that count, so
+        this only needs to run when one is created.
+        """
+        active = board.threads.filter(deleted=False, archived=False)
+        overflow = active.count() - board.max_pages * board.threads_per_page
+
+        if overflow <= 0:
+            return
+
+        overflow_ids = list(
+            active.filter(pinned=False)
+            .order_by("bumped_at")
+            .values_list("id", flat=True)[:overflow]
+        )
+
+        if overflow_ids:
+            Thread.objects.filter(id__in=overflow_ids).update(
+                archived=True, archived_at=timezone.now()
+            )
 
     @staticmethod
     def create_reply(

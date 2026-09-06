@@ -261,6 +261,20 @@ form strong,
     text-align: center;
 }
 
+.search-form {
+    display: flex;
+    width: min(100%, 520px);
+    gap: 6px;
+    margin: 14px 0;
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
+.search-form input {
+    flex: 1;
+}
+
 .pagination a,
 .pagination span {
     margin: 0 4px;

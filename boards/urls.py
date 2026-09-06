@@ -35,6 +35,12 @@ urlpatterns = [
     ),
 
     path(
+        "<slug:board_slug>/search/",
+        views.search,
+        name="board-search",
+    ),
+
+    path(
         "report/<int:post_id>/",
         views.report_post,
         name="report-post",

@@ -2,6 +2,7 @@
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Prefetch
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -10,7 +11,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from .forms import BanForm
-from .models import Ban, Board, ModAction, Post, Report, Thread
+from .models import Ban, Board, ModAction, Post, PostReference, Report, Thread
 from .moderation import (
     ban_duration_delta,
     can_moderate,
@@ -49,11 +50,10 @@ def _open_report_count(request):
 
 @moderator_required
 def dashboard(request):
-    actions = (
-        ModAction.objects.select_related(
-            "moderator", "board", "target_thread", "target_post"
-        )[:50]
-    )
+    # The template only ever shows target_thread_id/target_post_id (plain
+    # columns, no join needed) — moderator and board are the only FKs it
+    # actually dereferences.
+    actions = ModAction.objects.select_related("moderator", "board")[:50]
 
     return render(
         request,
@@ -153,8 +153,16 @@ def reports(request):
     show_all = request.GET.get("show") == "all"
 
     queryset = (
-        Report.objects.select_related(
-            "post__thread__board", "resolved_by"
+        Report.objects.select_related("post__thread__board", "resolved_by")
+        .prefetch_related(
+            # render_post (in the template) reads post.references for
+            # each report's post; without this it's an extra query per row.
+            Prefetch(
+                "post__references",
+                queryset=PostReference.objects.select_related(
+                    "target__thread__board"
+                ),
+            )
         )
         .filter(post__thread__board__in=moderatable_boards(request.user))
     )

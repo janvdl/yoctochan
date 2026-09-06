@@ -1,0 +1,72 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Search - /{{ board.slug }}/</title>
+
+    <link rel="stylesheet" href="{% static 'boards/style.css' %}">
+    <script src="{% static 'boards/expand.js' %}" defer></script>
+</head>
+
+<body>
+
+{% include "boards/_watcher.html" %}
+
+<p>
+    <a href="{% url 'board' board.slug %}">
+        ← Back to /{{ board.slug }}/
+    </a>
+</p>
+
+<h1>
+    Search /{{ board.slug }}/
+</h1>
+
+<form method="get" class="search-form">
+    <input type="text" name="q" value="{{ query }}"
+           placeholder="Search posts…" maxlength="200" autofocus>
+    <button type="submit">Search</button>
+</form>
+
+{% if query_too_short %}
+    <p>
+        Search term must be at least {{ min_query_length }} characters.
+    </p>
+{% elif has_searched %}
+    <p>
+        {{ page_obj.paginator.count }} result{{ page_obj.paginator.count|pluralize }}
+        for “{{ query }}”.
+    </p>
+
+    {% for post in page_obj %}
+        {% include "boards/post.html" %}
+        <hr>
+    {% empty %}
+        <p>No posts match “{{ query }}”.</p>
+    {% endfor %}
+
+    <nav class="pagination">
+
+        {% if page_obj.has_previous %}
+            <a href="?q={{ query|urlencode }}&page=1">First</a>
+            <a href="?q={{ query|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+
+        <span>
+            Page {{ page_obj.number }}
+            of {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?q={{ query|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+            <a href="?q={{ query|urlencode }}&page={{ page_obj.paginator.num_pages }}">Last</a>
+        {% endif %}
+
+    </nav>
+{% endif %}
+
+</body>
+</html>

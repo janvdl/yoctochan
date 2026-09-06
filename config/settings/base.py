@@ -212,6 +212,13 @@ RATE_LIMIT_THREAD_MAX = 3
 # trustworthy X-Forwarded-For header; otherwise poster IPs come from REMOTE_ADDR.
 TRUST_X_FORWARDED_FOR = env_bool("TRUST_X_FORWARDED_FOR", default=False)
 
+# Per-board post search (boards.views.search). A plain case-insensitive
+# substring match on content/subject — works identically on SQLite and
+# PostgreSQL, at the cost of not scaling to a large board; a real
+# full-text index is a Phase 6 follow-up if that ever matters here.
+SEARCH_MIN_QUERY_LENGTH = 2
+SEARCH_RESULTS_PER_PAGE = 20
+
 
 # Security: cookies and browser-enforced headers
 # https://docs.djangoproject.com/en/6.1/topics/security/

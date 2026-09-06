@@ -32,6 +32,7 @@
 <p>
     Thread #{{ thread.id }}
     {% if thread.deleted %}<strong class="mod-flag">[deleted]</strong>{% endif %}
+    {% if thread.archived %}<strong class="mod-flag">[archived]</strong>{% endif %}
 
     <button type="button" id="watch-thread-toggle" class="watch-toggle"
             data-board="{{ thread.board.slug }}"
@@ -54,7 +55,7 @@
     {% include "boards/_mod_thread_bar.html" %}
 {% endif %}
 
-{% if not thread.locked %}
+{% if not thread.locked and not thread.archived %}
     <p>
         <a href="{% url 'create-reply' thread.board.slug thread.id %}">
             Reply to Thread

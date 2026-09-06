@@ -14,8 +14,11 @@ queue, and IP bans with expiry), and Phase 5 abuse/security protections are
 in place (rate limiting, spam/duplicate detection, secure headers and
 cookies) aside from a CAPTCHA, which is deliberately deferred. Settings are
 split into dev/prod modules driven by environment variables, and the
-database can be SQLite (default, zero setup) or PostgreSQL. There is still
-no deployment configuration. Expect breaking changes and schema churn.
+database can be SQLite (default, zero setup) or PostgreSQL. Boards get
+per-board search, automatic thread archival once a board fills up, and a
+first pass of indexes/query cleanup targeted at the hottest paths (ban
+checks, rate limiting, the reports queue). There is still no deployment
+configuration. Expect breaking changes and schema churn.
 
 Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 
@@ -29,7 +32,7 @@ Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 | Error pages (400/403/404/500) | Working |
 | Moderation — soft-delete post/thread, lock, sticky, `/mod/` dashboard, audit log, board-scoped moderators, poster IP capture, report queue, IP bans (global + per-board) with expiry | Working |
 | Abuse & security — rate limiting, flood control, spam detection, secure headers | Working (no CAPTCHA yet) |
-| Performance — caching, Redis, HTMX, background jobs, search, archival | Not started |
+| Performance — per-board search, thread archival, hot-path indexes, query cleanup | Working (no caching/Redis/background jobs yet) |
 | Config — environment-driven settings, dev/prod split, PostgreSQL | Working |
 | Production — deployment, HTTPS, media storage, backups, monitoring | Not started |
 
@@ -94,6 +97,17 @@ hidden — with orientation baked into the pixels first so removing the tag
 doesn't leave the image sideways. An upload with no EXIF to strip, or in an
 already-fine format, is stored byte-for-byte as uploaded rather than being
 needlessly re-encoded.
+
+Each board has a `[ Search ]` link — a plain case-insensitive match over
+post content and thread subjects (subject matches surface the thread's OP),
+scoped to that board. It's deliberately simple (works identically on SQLite
+and PostgreSQL); a real full-text index would be a Phase 6 follow-up if a
+board ever gets large enough to need it. Boards also archive themselves
+automatically: once a board has more active threads than its `max_pages *
+threads_per_page` (both set per-board, in the admin), the oldest
+non-pinned threads are frozen (no more replies, dropped from the active
+listing) to make room — still directly viewable at their URL, just no
+longer part of the live board.
 
 Moderation lives at `/mod/`. Any staff user who is a superuser, or who has a
 `Moderator` record (created in the admin), can log in there; a `Moderator` with

@@ -1,11 +1,12 @@
 from collections import defaultdict
 
+from django.conf import settings
 from django.contrib import messages
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.core.paginator import Paginator
-from django.db.models import Count, F, Prefetch, Q, Window
+from django.db.models import Count, F, OuterRef, Prefetch, Q, Subquery, Window
 from django.db.models.functions import RowNumber
 
 from .forms import CreateThreadForm, CreatePostForm, ReportForm
@@ -59,7 +60,7 @@ def board(request, board_slug):
 
     threads = (
         board.threads
-        .filter(deleted=False)
+        .filter(deleted=False, archived=False)
         .annotate(
             post_count=Count(
                 "posts",
@@ -149,6 +150,68 @@ def board(request, board_slug):
             "can_moderate": can_moderate(request.user, board),
         },
     )
+
+
+def search(request, board_slug):
+    board = get_object_or_404(
+        Board,
+        slug=board_slug,
+        is_active=True,
+    )
+
+    query = request.GET.get("q", "").strip()
+    query_too_short = bool(query) and len(query) < settings.SEARCH_MIN_QUERY_LENGTH
+    has_searched = bool(query) and not query_too_short
+    page_obj = None
+
+    if has_searched:
+        # A subject match should surface the thread's OP, not every one of
+        # its replies (a reply's own content still matches independently,
+        # via the other half of the OR below).
+        first_post_id = (
+            Post.objects.filter(thread=OuterRef("thread"))
+            .order_by("created_at", "id")
+            .values("id")[:1]
+        )
+
+        results = (
+            Post.objects.filter(
+                thread__board=board,
+                deleted=False,
+                thread__deleted=False,
+            )
+            .filter(
+                Q(content__icontains=query)
+                | Q(thread__subject__icontains=query, id=Subquery(first_post_id))
+            )
+            .select_related("thread")
+            .prefetch_related(
+                Prefetch(
+                    "references",
+                    queryset=PostReference.objects.select_related(
+                        "target__thread__board"
+                    ),
+                )
+            )
+            .order_by("-created_at")
+        )
+
+        paginator = Paginator(results, settings.SEARCH_RESULTS_PER_PAGE)
+        page_obj = paginator.get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "boards/search.html",
+        {
+            "board": board,
+            "query": query,
+            "query_too_short": query_too_short,
+            "has_searched": has_searched,
+            "min_query_length": settings.SEARCH_MIN_QUERY_LENGTH,
+            "page_obj": page_obj,
+        },
+    )
+
 
 def thread(request, board_slug, thread_id):
     thread = get_object_or_404(
@@ -273,7 +336,7 @@ def create_reply(request, board_slug, thread_id):
     if banned:
         return banned
 
-    if thread.locked:
+    if thread.locked or thread.archived:
         return redirect(
             "thread",
             board_slug=board_slug,

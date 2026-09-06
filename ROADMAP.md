@@ -79,15 +79,15 @@
 
 # Phase 6 — Performance & Scaling
 
-[ ] Database indexes
-[ ] Query optimisation
+[x] Database indexes
+[x] Query optimisation
 [ ] Redis
 [ ] Caching
 [ ] HTMX
 [ ] Background jobs
 [ ] PostgreSQL tuning
-[ ] Thread archival
-[ ] Search
+[x] Thread archival
+[x] Search
 
 
 # Phase 7 — Imageboard Features

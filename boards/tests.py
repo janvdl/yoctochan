@@ -10,12 +10,15 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import Client, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
 from .models import Ban, Board, ModAction, Moderator, Post, PostReference, Report, Thread
 from .moderation import active_ban_for
+from .services import PostService, ThreadService
 from .tripcode import compute_tripcode, parse_poster_name
 
 
@@ -1576,3 +1579,191 @@ class ImageConversionTests(TestCase):
         post = Post.objects.get()
         with post.image.open("rb") as saved_file:
             self.assertEqual(saved_file.read(), original_bytes)
+
+
+class ThreadArchivalTests(TestCase):
+    def setUp(self):
+        # Cap = threads_per_page * max_pages = 2 active threads.
+        self.board = Board.objects.create(
+            slug="b", name="Board", threads_per_page=2, max_pages=1
+        )
+
+    def make_thread(self, pinned=False):
+        post = ThreadService.create_thread(
+            board=self.board, subject="", poster_name="", content="op"
+        )
+        thread = post.thread
+
+        if pinned:
+            thread.pinned = True
+            thread.save(update_fields=["pinned"])
+
+        return thread
+
+    def test_overflow_archives_the_oldest_thread(self):
+        first = self.make_thread()
+        self.make_thread()
+        self.make_thread()
+
+        first.refresh_from_db()
+        self.assertTrue(first.archived)
+        self.assertIsNotNone(first.archived_at)
+        self.assertEqual(
+            self.board.threads.filter(archived=False).count(), 2
+        )
+
+    def test_pinned_threads_are_never_archived(self):
+        pinned = self.make_thread(pinned=True)
+        second = self.make_thread()
+        self.make_thread()
+
+        pinned.refresh_from_db()
+        second.refresh_from_db()
+
+        self.assertFalse(pinned.archived)
+        self.assertTrue(second.archived)
+
+    def test_archived_thread_is_hidden_from_board_listing(self):
+        first = self.make_thread()
+        self.make_thread()
+        self.make_thread()
+
+        response = self.client.get(reverse("board", args=[self.board.slug]))
+
+        self.assertNotContains(response, f"thread/{first.id}/")
+
+    def test_archived_thread_is_still_directly_viewable(self):
+        first = self.make_thread()
+        self.make_thread()
+        self.make_thread()
+
+        response = self.client.get(
+            reverse("thread", args=[self.board.slug, first.id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "[archived]")
+
+    def test_reply_to_archived_thread_is_rejected(self):
+        first = self.make_thread()
+        self.make_thread()
+        self.make_thread()
+
+        response = self.client.post(
+            reverse("create-reply", args=[self.board.slug, first.id]),
+            {"content": "too late"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(first.posts.count(), 1)
+
+
+class SearchTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.other_board = Board.objects.create(slug="c", name="Other")
+
+        self.thread = Thread.objects.create(board=self.board, subject="cats")
+        self.matching_post = Post.objects.create(
+            thread=self.thread, content="I like cats"
+        )
+        self.non_matching_post = Post.objects.create(
+            thread=self.thread, content="dogs are fine too"
+        )
+
+    def search(self, query, board=None, **extra):
+        return self.client.get(
+            reverse("board-search", args=[(board or self.board).slug]),
+            {"q": query, **extra},
+        )
+
+    def test_matches_post_content(self):
+        response = self.search("cats")
+
+        self.assertContains(response, "I like cats")
+        self.assertNotContains(response, "dogs are fine too")
+
+    def test_matches_thread_subject(self):
+        # Matches the OP via the thread subject even though its own
+        # content doesn't contain the term.
+        response = self.search("cats")
+
+        self.assertContains(response, "I like cats")
+
+    def test_is_case_insensitive(self):
+        response = self.search("CATS")
+
+        self.assertContains(response, "I like cats")
+
+    def test_scoped_to_the_current_board(self):
+        other_thread = Thread.objects.create(board=self.other_board)
+        Post.objects.create(thread=other_thread, content="cats over here too")
+
+        response = self.search("cats")
+
+        self.assertContains(response, "I like cats")
+        self.assertNotContains(response, "cats over here too")
+
+    def test_no_matches(self):
+        response = self.search("nonexistentterm")
+
+        self.assertContains(response, "No posts match")
+
+    def test_empty_query_shows_no_results_section(self):
+        response = self.search("")
+
+        self.assertIsNone(response.context["page_obj"])
+
+    def test_query_below_minimum_length_is_rejected(self):
+        response = self.search("a")
+
+        self.assertTrue(response.context["query_too_short"])
+        self.assertContains(response, "at least")
+
+    def test_deleted_post_is_excluded(self):
+        self.matching_post.set_deleted(True)
+
+        response = self.search("cats")
+
+        self.assertNotContains(response, "I like cats")
+
+    def test_deleted_thread_is_excluded(self):
+        self.thread.set_deleted(True)
+
+        response = self.search("cats")
+
+        self.assertNotContains(response, "I like cats")
+
+
+class ReportsQueueQueryCountTests(TestCase):
+    """Regression guard for the N+1 in mod_views.reports() (render_post
+    reading each report's post.references without a prefetch)."""
+
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+        self.mod = User.objects.create_superuser("root", password="x")
+        self.client.force_login(self.mod)
+
+    def _make_report(self):
+        thread = Thread.objects.create(board=self.board)
+        op = Post.objects.create(thread=thread, content="op")
+        reply = Post.objects.create(thread=thread, content=f">>{op.id} nice")
+        PostService.parse_references(reply)
+
+        return Report.objects.create(post=reply, reason="spam")
+
+    def test_query_count_does_not_scale_with_report_count(self):
+        self._make_report()
+
+        with CaptureQueriesContext(connection) as one_report:
+            self.client.get(reverse("mod-reports"))
+
+        for _ in range(5):
+            self._make_report()
+
+        with CaptureQueriesContext(connection) as six_reports:
+            self.client.get(reverse("mod-reports"))
+
+        self.assertEqual(
+            len(one_report.captured_queries), len(six_reports.captured_queries)
+        )

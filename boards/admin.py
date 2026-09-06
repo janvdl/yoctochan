@@ -45,6 +45,7 @@ class ThreadAdmin(admin.ModelAdmin):
         "bumped_at",
         "locked",
         "pinned",
+        "archived",
         "deleted",
     )
 
@@ -52,6 +53,7 @@ class ThreadAdmin(admin.ModelAdmin):
         "board",
         "locked",
         "pinned",
+        "archived",
         "deleted",
     )
 

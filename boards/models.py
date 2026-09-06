@@ -34,6 +34,13 @@ class Board(models.Model):
         default=10,
     )
 
+    # A board shows at most max_pages * threads_per_page active threads;
+    # beyond that, the oldest (by bump order, excluding pinned) are
+    # automatically archived to make room. See ThreadService.
+    max_pages = models.PositiveIntegerField(
+        default=10,
+    )
+
     catalogue_replies = models.PositiveIntegerField(
         default=3,
     )
@@ -68,6 +75,13 @@ class Thread(models.Model):
     locked = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False)
 
+    # Automatically set once the board has more active threads than its
+    # max_pages * threads_per_page cap — frozen (no more replies) and
+    # dropped from the board's active listing, but still directly
+    # viewable. Never set on a pinned thread.
+    archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
     deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey(
@@ -81,9 +95,9 @@ class Thread(models.Model):
     class Meta:
         ordering = ["-pinned", "-bumped_at"]
         indexes = [
-            # Matches board()'s hot query: a board's non-deleted threads,
-            # newest-bumped (pinned) first.
-            models.Index(fields=["board", "deleted", "pinned", "bumped_at"]),
+            # Matches board()'s hot query: a board's non-deleted,
+            # non-archived threads, newest-bumped (pinned) first.
+            models.Index(fields=["board", "deleted", "archived", "pinned", "bumped_at"]),
         ]
 
     def can_bump(self):
