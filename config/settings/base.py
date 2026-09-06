@@ -118,6 +118,31 @@ else:
     }
 
 
+# Cache
+# https://docs.djangoproject.com/en/6.1/topics/cache/
+#
+# Set REDIS_URL (e.g. redis://redis:6379/1) to cache through Redis;
+# otherwise falls back to Django's in-process LocMemCache, so `runserver`
+# still works with zero setup. LocMemCache is per-process — fine for one
+# dev server, not for multiple gunicorn workers sharing a cache — so a
+# real deployment should set REDIS_URL.
+REDIS_URL = env_str("REDIS_URL", "")
+
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
+    }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
 
@@ -157,6 +182,11 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
+
+# Where `collectstatic` writes to. Not used by `runserver` (which serves
+# STATICFILES_DIRS directly); a production deployment runs `collectstatic`
+# at build/deploy time and serves this directory itself (see deploy/Caddyfile).
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
 # Media files (user uploads)
@@ -212,6 +242,14 @@ RATE_LIMIT_THREAD_MAX = 3
 # trustworthy X-Forwarded-For header; otherwise poster IPs come from REMOTE_ADDR.
 TRUST_X_FORWARDED_FOR = env_bool("TRUST_X_FORWARDED_FOR", default=False)
 
+if TRUST_X_FORWARDED_FOR:
+    # Same trust boundary as above: a reverse proxy (see deploy/Caddyfile)
+    # terminates TLS and talks plain HTTP to this app, setting
+    # X-Forwarded-Proto so Django knows the original request was HTTPS.
+    # Without this, SECURE_SSL_REDIRECT would redirect-loop and secure
+    # cookies would never be sent, behind a proxy that's already secure.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 # Per-board post search (boards.views.search). A plain case-insensitive
 # substring match on content/subject — works identically on SQLite and
 # PostgreSQL, at the cost of not scaling to a large board; a real
@@ -257,3 +295,47 @@ EMAIL_BACKEND = env_str(
     "DJANGO_EMAIL_BACKEND",
     "django.core.mail.backends.console.EmailBackend",
 )
+
+
+# Logging
+# https://docs.djangoproject.com/en/6.1/topics/logging/
+#
+# Everything goes to stdout rather than a file: a container's log driver
+# (or `journalctl`, outside a container) is what actually collects and
+# rotates it, so writing our own log file here would just be a second,
+# uncollected copy.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s %(levelname)s %(name)s: %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'default',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        # Django logs a full traceback here on every unhandled 500 — worth
+        # keeping regardless of DEBUG, since that's the only place it goes
+        # once DEBUG is off and the browser just gets a plain error page.
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        # Blocked hosts, CSRF failures, suspicious paths, etc.
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}

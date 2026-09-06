@@ -19,6 +19,8 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from .views import healthcheck
+
 handler400 = "boards.views.bad_request"
 handler403 = "boards.views.permission_denied"
 handler404 = "boards.views.page_not_found"
@@ -27,6 +29,7 @@ handler500 = "boards.views.server_error"
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("mod/", include("boards.mod_urls")),
+    path("healthz/", healthcheck, name="healthcheck"),
     path("", include("boards.urls")),
 ]
 

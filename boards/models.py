@@ -6,7 +6,9 @@ from django.utils import timezone
 
 
 # URL prefixes that must never be shadowed by a board slug.
-RESERVED_BOARD_SLUGS = frozenset({"admin", "mod", "static", "media", "report", "watcher"})
+RESERVED_BOARD_SLUGS = frozenset(
+    {"admin", "mod", "static", "media", "report", "watcher", "healthz"}
+)
 
 
 def validate_board_slug(value):
