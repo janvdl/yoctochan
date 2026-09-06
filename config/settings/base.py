@@ -278,6 +278,13 @@ SECURE_HSTS_SECONDS = 0 if DEBUG else 31536000  # 1 year, once behind HTTPS
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
 
+# /healthz/ is hit directly (not through the reverse proxy) by a container
+# orchestrator's own healthcheck — a plain HTTP loopback call with no
+# X-Forwarded-Proto to make request.is_secure() true, so without this
+# exemption SECURE_SSL_REDIRECT would 301 every healthcheck and it would
+# never pass.
+SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
+
 
 # Authentication (moderation area)
 

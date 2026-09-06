@@ -11,7 +11,7 @@ serving an insecure site.
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F401,F403
-from .base import ALLOWED_HOSTS, DEBUG, SECRET_KEY
+from .base import ALLOWED_HOSTS, DATABASE_ENGINE, DATABASES, DEBUG, SECRET_KEY
 
 if DEBUG:
     raise ImproperlyConfigured(
@@ -28,4 +28,10 @@ if not ALLOWED_HOSTS:
     raise ImproperlyConfigured(
         "config.settings.prod requires DJANGO_ALLOWED_HOSTS "
         "(comma-separated) to be set."
+    )
+
+if DATABASE_ENGINE == "postgresql" and not DATABASES["default"]["PASSWORD"]:
+    raise ImproperlyConfigured(
+        "config.settings.prod requires POSTGRES_PASSWORD to be set when "
+        "DATABASE_ENGINE=postgresql."
     )

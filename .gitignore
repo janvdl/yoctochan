@@ -14,6 +14,9 @@ db.sqlite3
 media/
 staticfiles/
 
+# Deployment
+deploy/backups/
+
 # Environment variables
 .env
 

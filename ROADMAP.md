@@ -81,11 +81,11 @@
 
 [x] Database indexes
 [x] Query optimisation
-[ ] Redis
+[x] Redis
 [ ] Caching
 [ ] HTMX
 [ ] Background jobs
-[ ] PostgreSQL tuning
+[x] PostgreSQL tuning
 [x] Thread archival
 [x] Search
 
@@ -110,11 +110,11 @@
 # Phase 8 — Production
 
 [x] Production settings
-[ ] Deployment
-[ ] HTTPS
-[ ] Static file serving
-[ ] Media storage
-[ ] Logging
-[ ] Monitoring
-[ ] Database backups
-[ ] Restore testing
+[x] Deployment
+[x] HTTPS
+[x] Static file serving
+[x] Media storage
+[x] Logging
+[x] Monitoring
+[x] Database backups
+[x] Restore testing

@@ -1,0 +1,22 @@
+# DOMAIN defaults to "localhost" (see docker-compose.yml), for which Caddy
+# serves locally-trusted HTTPS via its own internal CA rather than
+# attempting Let's Encrypt — works out of the box with no DNS or public
+# reachability. Set DOMAIN in .env to a real hostname once you have one
+# pointed at this host with 80/443 reachable, and Caddy switches to a
+# real, auto-renewed Let's Encrypt certificate for it automatically.
+{$DOMAIN:localhost} {
+    encode gzip
+
+    # Served directly from the shared volumes — never touches gunicorn.
+    handle_path /static/* {
+        root * /srv/static
+        file_server
+    }
+
+    handle_path /media/* {
+        root * /srv/media
+        file_server
+    }
+
+    reverse_proxy app:8000
+}
