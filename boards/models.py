@@ -80,6 +80,11 @@ class Thread(models.Model):
 
     class Meta:
         ordering = ["-pinned", "-bumped_at"]
+        indexes = [
+            # Matches board()'s hot query: a board's non-deleted threads,
+            # newest-bumped (pinned) first.
+            models.Index(fields=["board", "deleted", "pinned", "bumped_at"]),
+        ]
 
     def can_bump(self):
         return self.posts.count() < self.board.bump_limit
@@ -158,6 +163,16 @@ class Post(models.Model):
         blank=True,
         related_name="+",
     )
+
+    class Meta:
+        indexes = [
+            # RateLimitService checks every poster_ip against a recent-time
+            # window on every single post/reply submission.
+            models.Index(fields=["poster_ip", "created_at"]),
+            # PostService's duplicate-content/-image checks scan a
+            # thread's recent posts by time.
+            models.Index(fields=["thread", "created_at"]),
+        ]
 
     def set_deleted(self, deleted, *, by=None):
         self.deleted = deleted
@@ -358,6 +373,12 @@ class Ban(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            # active_ban_for() runs this exact lookup on every single
+            # thread/reply creation request (both GET and POST) — probably
+            # the single hottest query in the app.
+            models.Index(fields=["ip_address", "lifted_at"]),
+        ]
 
     def is_active(self):
         return self.lifted_at is None and (
