@@ -3,6 +3,7 @@ import tempfile
 from datetime import timedelta
 from io import BytesIO
 
+import pillow_heif
 from PIL import Image
 
 from django.conf import settings
@@ -28,6 +29,29 @@ def make_upload(name="test.png", image_format="PNG", size=(400, 300)):
         buffer.read(),
         content_type=f"image/{image_format.lower()}",
     )
+
+
+def make_upload_with_exif(name="test.jpg", size=(400, 300), orientation=6):
+    buffer = BytesIO()
+    exif = Image.Exif()
+    exif[0x0112] = orientation  # Orientation
+    exif[0x927C] = b"fake maker note"  # MakerNote: stand-in for identifying data
+    Image.effect_noise(size, 40).convert("RGB").save(
+        buffer, format="JPEG", exif=exif, quality=90
+    )
+    buffer.seek(0)
+
+    return SimpleUploadedFile(name, buffer.read(), content_type="image/jpeg")
+
+
+def make_heic_upload(name="test.heic", size=(400, 300)):
+    img = Image.effect_noise(size, 40).convert("RGB")
+    heif_file = pillow_heif.from_pillow(img)
+    buffer = BytesIO()
+    heif_file.save(buffer, format="HEIF")
+    buffer.seek(0)
+
+    return SimpleUploadedFile(name, buffer.read(), content_type="image/heic")
 
 
 class HomepageTests(TestCase):
@@ -1458,3 +1482,97 @@ class WatcherStatusTests(TestCase):
 
         data = response.json()["threads"][str(self.thread.id)]
         self.assertTrue(data["deleted"])
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ExifStrippingTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+
+    def test_exif_is_stripped_from_the_stored_image(self):
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "photo", "image": make_upload_with_exif()},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        post = Post.objects.get()
+        with Image.open(post.image) as saved:
+            self.assertEqual(dict(saved.getexif()), {})
+
+    def test_orientation_is_baked_in_before_the_tag_is_dropped(self):
+        # Orientation 6 (rotate 270) swaps width and height for a
+        # non-square image — if this were just discarded rather than
+        # applied, the stored image would end up sideways.
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {
+                "content": "photo",
+                "image": make_upload_with_exif(size=(400, 300), orientation=6),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        post = Post.objects.get()
+        self.assertEqual((post.image_width, post.image_height), (300, 400))
+
+    def test_image_without_exif_is_stored_unmodified(self):
+        upload = make_upload(name="plain.jpg", image_format="JPEG")
+        original_bytes = upload.read()
+        upload.seek(0)
+
+        self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "plain", "image": upload},
+        )
+
+        post = Post.objects.get()
+        with post.image.open("rb") as saved_file:
+            self.assertEqual(saved_file.read(), original_bytes)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class ImageConversionTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        self.board = Board.objects.create(slug="b", name="Board")
+
+    def test_heic_upload_is_converted_to_jpeg(self):
+        response = self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "iphone photo", "image": make_heic_upload()},
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        post = Post.objects.get()
+        self.assertTrue(post.image.name.endswith(".jpg"))
+
+        with Image.open(post.image) as saved:
+            self.assertEqual(saved.format, "JPEG")
+            self.assertEqual(saved.size, (400, 300))
+
+    def test_already_supported_format_is_not_touched_by_conversion(self):
+        upload = make_upload(name="plain.png", image_format="PNG")
+        original_bytes = upload.read()
+        upload.seek(0)
+
+        self.client.post(
+            reverse("create-thread", args=[self.board.slug]),
+            {"content": "plain", "image": upload},
+        )
+
+        post = Post.objects.get()
+        with post.image.open("rb") as saved_file:
+            self.assertEqual(saved_file.read(), original_bytes)

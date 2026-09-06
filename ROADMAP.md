@@ -102,9 +102,9 @@
 [x] Thread subscriptions
 [x] Image uploads
 [x] Thumbnail generation
-[ ] EXIF stripping
+[x] EXIF stripping
 [ ] Image hashing
-[ ] Image conversion
+[x] Image conversion
 
 
 # Phase 8 — Production

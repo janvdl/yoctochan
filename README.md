@@ -25,7 +25,7 @@ Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 | Post rendering — greentext, `>>` post references, auto-linking, HTML escaping | Working |
 | Posting — create threads, reply, bumping, bump limits, thread locking | Working |
 | Imageboard conventions — name field, tripcodes, sage, backlinks, "You" highlighting, thread watcher | Working |
-| Image uploads — one image per post (JPG/PNG/GIF/WebP), server-side thumbnails, click-to-expand | Working |
+| Image uploads — one image per post (JPG/PNG/GIF/WebP, plus HEIC/HEIF converted on the way in), server-side thumbnails, EXIF stripped, click-to-expand | Working |
 | Error pages (400/403/404/500) | Working |
 | Moderation — soft-delete post/thread, lock, sticky, `/mod/` dashboard, audit log, board-scoped moderators, poster IP capture, report queue, IP bans (global + per-board) with expiry | Working |
 | Abuse & security — rate limiting, flood control, spam detection, secure headers | Working (no CAPTCHA yet) |
@@ -37,7 +37,8 @@ Progress is tracked in [ROADMAP.md](ROADMAP.md). Roughly where things stand:
 
 - Python 3.13, [Django](https://www.djangoproject.com/) 6.1
 - SQLite by default; PostgreSQL supported (via [psycopg](https://www.psycopg.org/))
-- [Pillow](https://python-pillow.org/) for image handling and thumbnails
+- [Pillow](https://python-pillow.org/) for image handling and thumbnails, with
+  [pillow-heif](https://github.com/bigcat88/pillow_heif) for HEIC/HEIF uploads
 - Server-rendered templates, plain CSS, a small amount of vanilla JavaScript (no frontend framework)
 
 ## Running locally
@@ -83,6 +84,16 @@ bumping the thread. Each post shows a "Replies:" backlink to any post that
 persistent widget listing threads you've pinned, with new-reply counts) are
 both client-side only, backed by this browser's `localStorage` — there's no
 poster account for either to attach to server-side.
+
+An uploaded image goes through a small pipeline before it's stored: a HEIC/HEIF
+photo (the default format on modern iPhones) is converted to JPEG so it isn't
+just rejected outright; EXIF metadata (GPS coordinates, camera make/model,
+timestamps) is then stripped from JPEG/PNG/WEBP uploads — real deanonymising
+data on a board where poster IPs and names are already kept private or
+hidden — with orientation baked into the pixels first so removing the tag
+doesn't leave the image sideways. An upload with no EXIF to strip, or in an
+already-fine format, is stored byte-for-byte as uploaded rather than being
+needlessly re-encoded.
 
 Moderation lives at `/mod/`. Any staff user who is a superuser, or who has a
 `Moderator` record (created in the admin), can log in there; a `Moderator` with

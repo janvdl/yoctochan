@@ -2,6 +2,7 @@ from django import forms
 from django.conf import settings
 from django.template.defaultfilters import filesizeformat
 
+from .imaging import convert_to_supported_format, strip_exif
 from .moderation import BAN_DURATION_CHOICES
 from .models import Report
 
@@ -25,6 +26,28 @@ def validate_post_image(image):
         raise forms.ValidationError(
             "Unsupported image format. Allowed formats: JPG, PNG, GIF, WebP."
         )
+
+    return image
+
+
+def process_uploaded_image(image):
+    """
+    The full pipeline for a freshly-uploaded post image: convert a
+    recognised-but-unsupported format (HEIC/HEIF) into one we accept,
+    validate size and format, then strip EXIF metadata. Returns the image
+    to actually save — which may not be the object passed in, if either
+    step above replaced it — or raises ``ValidationError`` (via
+    ``validate_post_image``) if it's still not acceptable.
+    """
+    converted = convert_to_supported_format(image)
+    if converted is not None:
+        image = converted
+
+    validate_post_image(image)
+
+    stripped = strip_exif(image)
+    if stripped is not None:
+        image = stripped
 
     return image
 
@@ -62,7 +85,7 @@ class CreateThreadForm(forms.Form):
         image = self.cleaned_data.get("image")
 
         if image:
-            validate_post_image(image)
+            image = process_uploaded_image(image)
 
         return image
 
@@ -164,7 +187,7 @@ class CreatePostForm(forms.Form):
         image = self.cleaned_data.get("image")
 
         if image:
-            validate_post_image(image)
+            image = process_uploaded_image(image)
 
         return image
 
