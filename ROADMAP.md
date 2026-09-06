@@ -109,7 +109,7 @@
 
 # Phase 8 — Production
 
-[ ] Production settings
+[x] Production settings
 [ ] Deployment
 [ ] HTTPS
 [ ] Static file serving
